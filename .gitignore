@@ -1,0 +1,33 @@
+/cmake-build-debug/
+AGENTS.md
+docs/
+codex日志.md
+
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.Python
+env/
+venv/
+.venv
+*.egg-info/
+dist/
+build/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# API Keys (always keep local)
+.env
+.env.local
+docs/1.WHEELTEC_H30惯导模块用户手册.pdf
+docs/接线示意图.png
+docs/码盘_2026-06-07.jpg
+docs/码盘_2026-06-07.pdf
+docs/码盘_原理图.pdf
+docs/模块化_主控.pdf
+docs/设计架构图.png
