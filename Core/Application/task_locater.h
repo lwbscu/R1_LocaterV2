@@ -44,6 +44,9 @@ typedef struct {
     float encoder_y_cm;
     float encoder_dis_p_mm;
     float encoder_dis_q_mm;
+    float calib_x_cm;
+    float calib_y_cm;
+    float calib_yaw_deg;
     float lidar_x_cm;
     float lidar_y_cm;
     float lidar_yaw_deg;

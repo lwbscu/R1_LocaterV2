@@ -68,7 +68,7 @@ static void send_firewater_values(TelemetryTransmit_t transmit, const float *val
         return;
     }
 
-    char line[128];
+    char line[192];
     int len = 0;
 
     for (uint16_t i = 0U; i < count; i++) {
@@ -149,6 +149,9 @@ void StartTelemetryTask(void *argument)
             state.lidar_x_cm,
             state.lidar_y_cm,
             state.lidar_yaw_deg,
+            state.calib_x_cm,
+            state.calib_y_cm,
+            state.calib_yaw_deg,
         };
         send_firewater_values(Driver_UART_DebugTransmit, values, (uint16_t)(sizeof(values) / sizeof(values[0])));
 #endif

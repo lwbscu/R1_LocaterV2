@@ -11,17 +11,6 @@ static uint8_t s_frame[LIDAR_POSE_FRAME_LEN];
 static uint8_t s_frame_index;
 static LidarPose_Data_t s_lidar_data;
 
-static float angle_normal_deg(float angle)
-{
-    while (angle > 180.0f) {
-        angle -= 360.0f;
-    }
-    while (angle <= -180.0f) {
-        angle += 360.0f;
-    }
-    return angle;
-}
-
 static uint8_t frame_checksum(const uint8_t *frame)
 {
     uint8_t sum = 0U;
@@ -59,9 +48,9 @@ static void process_frame(const uint8_t *frame)
     s_lidar_data.raw_yaw = raw_yaw;
     s_lidar_data.sensor_x_cm = -(float)raw_y / 10.0f;
     s_lidar_data.sensor_y_cm = (float)raw_x / 10.0f;
-    s_lidar_data.yaw_deg = angle_normal_deg(((float)raw_yaw * 0.001f) *
-                                            (180.0f / LOCATER_PI) +
-                                            LOCATER_LIDAR_YAW_OFFSET_DEG);
+    s_lidar_data.yaw_deg = ((float)raw_yaw * 0.001f) *
+                           (180.0f / LOCATER_PI) +
+                           LOCATER_LIDAR_YAW_OFFSET_DEG;
     s_lidar_data.valid = true;
     s_lidar_data.has_pose = true;
     s_lidar_data.packet_count++;

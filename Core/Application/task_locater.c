@@ -24,18 +24,17 @@ static uint32_t s_h30_last_integrate_ms;
 static float s_lidar_x_cm = LOCATER_INITIAL_X_CM;
 static float s_lidar_y_cm = LOCATER_INITIAL_Y_CM;
 static float s_lidar_yaw_deg = LOCATER_INITIAL_YAW_DEG;
-static float s_lidar_zero_x_cm;
-static float s_lidar_zero_y_cm;
-static float s_lidar_zero_yaw_deg;
-static bool s_lidar_zero_ready;
-static float s_fused_x_cm = LOCATER_INITIAL_X_CM;
-static float s_fused_y_cm = LOCATER_INITIAL_Y_CM;
-static float s_fused_yaw_deg = LOCATER_INITIAL_YAW_DEG;
-static float s_prev_encoder_x_cm = LOCATER_INITIAL_X_CM;
-static float s_prev_encoder_y_cm = LOCATER_INITIAL_Y_CM;
-static bool s_fused_ready;
-static bool s_prev_encoder_pose_ready;
-static bool s_lidar_fix_applied;
+static float s_pos_x_cm = LOCATER_INITIAL_X_CM;
+static float s_pos_y_cm = LOCATER_INITIAL_Y_CM;
+static float s_pos_yaw_deg = LOCATER_INITIAL_YAW_DEG;
+static float s_lidar_anchor_x_cm = LOCATER_INITIAL_X_CM;
+static float s_lidar_anchor_y_cm = LOCATER_INITIAL_Y_CM;
+static float s_lidar_anchor_yaw_deg = LOCATER_INITIAL_YAW_DEG;
+static float s_anchor_encoder_x_cm = LOCATER_INITIAL_X_CM;
+static float s_anchor_encoder_y_cm = LOCATER_INITIAL_Y_CM;
+static float s_anchor_h30_yaw_deg = LOCATER_INITIAL_YAW_DEG;
+static uint32_t s_lidar_anchor_packet_count;
+static bool s_lidar_anchor_ready;
 static float s_yaw_zero_deg;
 static bool s_yaw_zero_ready;
 static volatile bool s_zero_requested;
@@ -65,17 +64,6 @@ static float apply_deadband(float value, float deadband)
 {
     if (fabsf(value) <= deadband) {
         return 0.0f;
-    }
-    return value;
-}
-
-static float clamp01(float value)
-{
-    if (value < 0.0f) {
-        return 0.0f;
-    }
-    if (value > 1.0f) {
-        return 1.0f;
     }
     return value;
 }
@@ -154,86 +142,59 @@ static bool lidar_is_online(const LidarPose_Data_t *lidar)
     return (HAL_GetTick() - lidar->last_update_ms) <= LOCATER_LIDAR_ONLINE_TIMEOUT_MS;
 }
 
-static void lidar_apply_origin(float abs_x_cm,
-                               float abs_y_cm,
-                               float abs_yaw_deg,
-                               float *rel_x_cm,
-                               float *rel_y_cm,
-                               float *rel_yaw_deg)
+static void set_lidar_anchor(float lidar_x_cm, float lidar_y_cm, float lidar_yaw_deg,
+                             uint32_t packet_count, float h30_yaw_deg)
 {
-    if (rel_x_cm == NULL || rel_y_cm == NULL || rel_yaw_deg == NULL) {
-        return;
-    }
-
-    if (!s_lidar_zero_ready) {
-        *rel_x_cm = abs_x_cm;
-        *rel_y_cm = abs_y_cm;
-        *rel_yaw_deg = abs_yaw_deg;
-        return;
-    }
-
-    const float dx = abs_x_cm - s_lidar_zero_x_cm;
-    const float dy = abs_y_cm - s_lidar_zero_y_cm;
-    const float zero_rad = angle_to_rad(-s_lidar_zero_yaw_deg);
-    const float cos_zero = cosf(zero_rad);
-    const float sin_zero = sinf(zero_rad);
-
-    *rel_x_cm = dx * cos_zero - dy * sin_zero;
-    *rel_y_cm = dx * sin_zero + dy * cos_zero;
-    *rel_yaw_deg = angle_diff_deg(abs_yaw_deg, s_lidar_zero_yaw_deg);
+    s_lidar_anchor_x_cm = lidar_x_cm;
+    s_lidar_anchor_y_cm = lidar_y_cm;
+    s_lidar_anchor_yaw_deg = lidar_yaw_deg;
+    s_anchor_encoder_x_cm = s_encoder_x_cm;
+    s_anchor_encoder_y_cm = s_encoder_y_cm;
+    s_anchor_h30_yaw_deg = h30_yaw_deg;
+    s_lidar_anchor_packet_count = packet_count;
+    s_lidar_anchor_ready = true;
 }
 
-static void update_fused_pose(float h30_yaw_deg,
-                              bool lidar_ready,
-                              float lidar_x_cm,
-                              float lidar_y_cm,
-                              float lidar_yaw_deg)
+static void update_lidar_first_pose(float h30_yaw_deg,
+                                    bool lidar_has_pose,
+                                    uint32_t lidar_packet_count,
+                                    float lidar_x_cm,
+                                    float lidar_y_cm,
+                                    float lidar_yaw_deg)
 {
-    if (!s_fused_ready) {
-        s_fused_x_cm = lidar_ready ? lidar_x_cm : s_encoder_x_cm;
-        s_fused_y_cm = lidar_ready ? lidar_y_cm : s_encoder_y_cm;
-        s_fused_yaw_deg = h30_yaw_deg;
-        s_prev_encoder_x_cm = s_encoder_x_cm;
-        s_prev_encoder_y_cm = s_encoder_y_cm;
-        s_prev_encoder_pose_ready = true;
-        s_fused_ready = true;
-        s_lidar_fix_applied = lidar_ready;
+    if (lidar_has_pose) {
+        s_lidar_x_cm = lidar_x_cm;
+        s_lidar_y_cm = lidar_y_cm;
+        s_lidar_yaw_deg = lidar_yaw_deg;
+
+        if (!s_lidar_anchor_ready ||
+            lidar_packet_count != s_lidar_anchor_packet_count) {
+            set_lidar_anchor(lidar_x_cm,
+                             lidar_y_cm,
+                             lidar_yaw_deg,
+                             lidar_packet_count,
+                             h30_yaw_deg);
+        }
+    }
+
+    if (s_lidar_anchor_ready) {
+        s_pos_x_cm = s_lidar_anchor_x_cm + (s_encoder_x_cm - s_anchor_encoder_x_cm);
+        s_pos_y_cm = s_lidar_anchor_y_cm + (s_encoder_y_cm - s_anchor_encoder_y_cm);
+        s_pos_yaw_deg = s_lidar_anchor_yaw_deg +
+                        angle_diff_deg(h30_yaw_deg, s_anchor_h30_yaw_deg);
     } else {
-        if (s_prev_encoder_pose_ready) {
-            s_fused_x_cm += s_encoder_x_cm - s_prev_encoder_x_cm;
-            s_fused_y_cm += s_encoder_y_cm - s_prev_encoder_y_cm;
-        } else {
-            s_prev_encoder_pose_ready = true;
-        }
-
-        s_prev_encoder_x_cm = s_encoder_x_cm;
-        s_prev_encoder_y_cm = s_encoder_y_cm;
-
-        if (lidar_ready) {
-#if LOCATER_FUSION_FIRST_LIDAR_SNAP_ENABLE
-            if (!s_lidar_fix_applied) {
-                s_fused_x_cm = lidar_x_cm;
-                s_fused_y_cm = lidar_y_cm;
-                s_lidar_fix_applied = true;
-            } else
-#endif
-            {
-                const float pos_gain = clamp01(LOCATER_FUSION_LIDAR_POS_GAIN);
-                s_fused_x_cm += (lidar_x_cm - s_fused_x_cm) * pos_gain;
-                s_fused_y_cm += (lidar_y_cm - s_fused_y_cm) * pos_gain;
-            }
-        }
-    }
-
-    s_fused_yaw_deg = h30_yaw_deg;
-    if (lidar_ready) {
-        const float yaw_gain = clamp01(LOCATER_FUSION_LIDAR_YAW_GAIN);
-        s_fused_yaw_deg = angle_normal_deg(h30_yaw_deg +
-                                           angle_diff_deg(lidar_yaw_deg, h30_yaw_deg) * yaw_gain);
+        s_pos_x_cm = s_encoder_x_cm;
+        s_pos_y_cm = s_encoder_y_cm;
+        s_pos_yaw_deg = h30_yaw_deg;
     }
 }
 
-static void reset_locater_origin(const H30Mini_Data_t *h30, const LidarPose_Data_t *lidar)
+static void reset_locater_origin(const H30Mini_Data_t *h30,
+                                 bool lidar_has_pose,
+                                 uint32_t lidar_packet_count,
+                                 float lidar_x_cm,
+                                 float lidar_y_cm,
+                                 float lidar_yaw_deg)
 {
     if (h30 != NULL && h30->has_attitude) {
         s_yaw_zero_deg = angle_normal_deg(h30->yaw_deg + LOCATER_H30_YAW_OFFSET_DEG);
@@ -257,33 +218,27 @@ static void reset_locater_origin(const H30Mini_Data_t *h30, const LidarPose_Data
     s_h30_last_packet_count = (h30 != NULL) ? h30->packet_count : 0U;
     s_h30_last_integrate_ms = (h30 != NULL) ? h30->last_update_ms : 0U;
 
-    float lidar_abs_x_cm = 0.0f;
-    float lidar_abs_y_cm = 0.0f;
-    float lidar_abs_yaw_deg = 0.0f;
-    if (lidar_to_chassis_abs_pose(lidar, &lidar_abs_x_cm, &lidar_abs_y_cm, &lidar_abs_yaw_deg)) {
-        s_lidar_zero_x_cm = lidar_abs_x_cm;
-        s_lidar_zero_y_cm = lidar_abs_y_cm;
-        s_lidar_zero_yaw_deg = lidar_abs_yaw_deg;
-        s_lidar_zero_ready = true;
-    } else {
-        s_lidar_zero_ready = false;
-        s_lidar_zero_x_cm = 0.0f;
-        s_lidar_zero_y_cm = 0.0f;
-        s_lidar_zero_yaw_deg = 0.0f;
+    const float h30_yaw_deg = h30_corrected_yaw_deg(h30);
+    s_lidar_anchor_ready = false;
+    s_lidar_anchor_packet_count = 0U;
+
+    if (lidar_has_pose) {
+        s_lidar_x_cm = lidar_x_cm;
+        s_lidar_y_cm = lidar_y_cm;
+        s_lidar_yaw_deg = lidar_yaw_deg;
+        set_lidar_anchor(lidar_x_cm,
+                         lidar_y_cm,
+                         lidar_yaw_deg,
+                         lidar_packet_count,
+                         h30_yaw_deg);
     }
 
-    s_lidar_x_cm = LOCATER_INITIAL_X_CM;
-    s_lidar_y_cm = LOCATER_INITIAL_Y_CM;
-    s_lidar_yaw_deg = LOCATER_INITIAL_YAW_DEG;
-
-    s_fused_x_cm = LOCATER_INITIAL_X_CM;
-    s_fused_y_cm = LOCATER_INITIAL_Y_CM;
-    s_fused_yaw_deg = LOCATER_INITIAL_YAW_DEG;
-    s_prev_encoder_x_cm = LOCATER_INITIAL_X_CM;
-    s_prev_encoder_y_cm = LOCATER_INITIAL_Y_CM;
-    s_fused_ready = false;
-    s_prev_encoder_pose_ready = false;
-    s_lidar_fix_applied = false;
+    update_lidar_first_pose(h30_yaw_deg,
+                            lidar_has_pose,
+                            lidar_packet_count,
+                            lidar_x_cm,
+                            lidar_y_cm,
+                            lidar_yaw_deg);
 }
 
 static void update_h30_dead_reckoning(const H30Mini_Data_t *h30, float yaw_deg)
@@ -429,12 +384,7 @@ void StartLocaterTask(void *argument)
         Driver_H30Mini_GetData(&h30);
         Driver_LidarPose_GetData(&lidar);
 
-        if (consume_zero_request()) {
-            reset_locater_origin(&h30, &lidar);
-            encoder = (Encoder_Snapshot_t){0};
-        }
-
-        const float h30_yaw_deg = h30_corrected_yaw_deg(&h30);
+        float h30_yaw_deg = h30_corrected_yaw_deg(&h30);
 
         update_h30_dead_reckoning(&h30, h30_yaw_deg);
         update_encoder_odometry(&encoder, h30_yaw_deg, &encoder_dis_p_mm, &encoder_dis_q_mm);
@@ -448,20 +398,25 @@ void StartLocaterTask(void *argument)
                                                               &lidar_abs_yaw_deg);
         const bool lidar_online = lidar_has_pose && lidar_is_online(&lidar);
 
-        if (lidar_has_pose) {
-            lidar_apply_origin(lidar_abs_x_cm,
-                               lidar_abs_y_cm,
-                               lidar_abs_yaw_deg,
-                               &s_lidar_x_cm,
-                               &s_lidar_y_cm,
-                               &s_lidar_yaw_deg);
+        if (consume_zero_request()) {
+            reset_locater_origin(&h30,
+                                 lidar_has_pose,
+                                 lidar.packet_count,
+                                 lidar_abs_x_cm,
+                                 lidar_abs_y_cm,
+                                 lidar_abs_yaw_deg);
+            h30_yaw_deg = h30_corrected_yaw_deg(&h30);
+            encoder = (Encoder_Snapshot_t){0};
+            encoder_dis_p_mm = 0.0f;
+            encoder_dis_q_mm = 0.0f;
+        } else {
+            update_lidar_first_pose(h30_yaw_deg,
+                                    lidar_has_pose,
+                                    lidar.packet_count,
+                                    lidar_abs_x_cm,
+                                    lidar_abs_y_cm,
+                                    lidar_abs_yaw_deg);
         }
-
-        update_fused_pose(h30_yaw_deg,
-                          lidar_online,
-                          s_lidar_x_cm,
-                          s_lidar_y_cm,
-                          s_lidar_yaw_deg);
 
         Locater_State_t next_state = {
             .tick_ms = HAL_GetTick(),
@@ -488,9 +443,9 @@ void StartLocaterTask(void *argument)
             .lidar_checksum_error_count = lidar.checksum_error_count,
             .lidar_frame_error_count = lidar.frame_error_count,
             .lidar_last_update_ms = lidar.last_update_ms,
-            .x_cm = s_fused_x_cm,
-            .y_cm = s_fused_y_cm,
-            .yaw_deg = s_fused_yaw_deg,
+            .x_cm = s_pos_x_cm,
+            .y_cm = s_pos_y_cm,
+            .yaw_deg = s_pos_yaw_deg,
             .h30_yaw_deg = h30_yaw_deg,
             .h30_x_cm = s_h30_x_cm,
             .h30_y_cm = s_h30_y_cm,
@@ -503,6 +458,9 @@ void StartLocaterTask(void *argument)
             .encoder_y_cm = s_encoder_y_cm,
             .encoder_dis_p_mm = encoder_dis_p_mm,
             .encoder_dis_q_mm = encoder_dis_q_mm,
+            .calib_x_cm = s_encoder_x_cm,
+            .calib_y_cm = s_encoder_y_cm,
+            .calib_yaw_deg = h30_yaw_deg,
             .lidar_x_cm = s_lidar_x_cm,
             .lidar_y_cm = s_lidar_y_cm,
             .lidar_yaw_deg = s_lidar_yaw_deg,
