@@ -22,7 +22,17 @@ typedef struct {
     uint32_t h30_crc_error_count;
     uint32_t h30_frame_error_count;
     uint32_t h30_last_update_ms;
+    bool lidar_valid;
+    bool lidar_online;
+    uint32_t lidar_packet_count;
+    uint32_t lidar_rx_byte_count;
+    uint32_t lidar_checksum_error_count;
+    uint32_t lidar_frame_error_count;
+    uint32_t lidar_last_update_ms;
+    float x_cm;
+    float y_cm;
     float yaw_deg;
+    float h30_yaw_deg;
     float h30_x_cm;
     float h30_y_cm;
     float h30_vx_mps;
@@ -34,6 +44,9 @@ typedef struct {
     float encoder_y_cm;
     float encoder_dis_p_mm;
     float encoder_dis_q_mm;
+    float lidar_x_cm;
+    float lidar_y_cm;
+    float lidar_yaw_deg;
 } Locater_State_t;
 
 void StartLocaterTask(void *argument);

@@ -1,5 +1,6 @@
 #include "driver_uart.h"
 #include "driver_h30mini.h"
+#include "driver_lidar_pose.h"
 #include "usart.h"
 
 #define DEBUG_LINE_BUFFER_SIZE 128U
@@ -48,6 +49,11 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
     if (huart->Instance == UART4) {
         Driver_H30Mini_RxCpltCallback(huart);
+        return;
+    }
+
+    if (huart->Instance == USART3) {
+        Driver_LidarPose_RxCpltCallback(huart);
         return;
     }
 

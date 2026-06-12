@@ -4,10 +4,12 @@
 #include "driver_uart.h"
 #include "locater_config.h"
 #include <stdio.h>
+#include <string.h>
 
 typedef void (*TelemetryTransmit_t)(const uint8_t *data, uint16_t len);
 
 static void send_firewater_values(TelemetryTransmit_t transmit, const float *values, uint16_t count);
+static void send_host_pose_frame(const Locater_State_t *state);
 
 static int append_char(char *line, size_t line_size, int offset, char value)
 {
@@ -84,6 +86,35 @@ static void send_firewater_values(TelemetryTransmit_t transmit, const float *val
     }
 }
 
+static void send_host_pose_frame(const Locater_State_t *state)
+{
+    if (state == NULL) {
+        return;
+    }
+
+    uint8_t frame[LOCATER_HOST_FRAME_LEN];
+    const float values[LOCATER_HOST_FRAME_FLOAT_COUNT] = {
+        state->x_cm,
+        state->y_cm,
+        state->yaw_deg,
+        state->lidar_x_cm,
+        state->lidar_y_cm,
+        state->lidar_yaw_deg,
+    };
+    uint8_t sum = 0U;
+
+    frame[0] = 'P';
+    frame[1] = 'G';
+    memcpy(&frame[2], values, sizeof(values));
+
+    for (uint16_t i = 0U; i < LOCATER_HOST_FRAME_LEN - 1U; i++) {
+        sum = (uint8_t)(sum + frame[i]);
+    }
+    frame[LOCATER_HOST_FRAME_LEN - 1U] = sum;
+
+    Driver_UART_ExtTransmit(frame, (uint16_t)sizeof(frame));
+}
+
 void StartTelemetryTask(void *argument)
 {
     (void)argument;
@@ -112,14 +143,16 @@ void StartTelemetryTask(void *argument)
         send_firewater_values(Driver_UART_DebugTransmit, values, (uint16_t)(sizeof(values) / sizeof(values[0])));
 #else
         const float values[] = {
+            state.x_cm,
+            state.y_cm,
             state.yaw_deg,
-            state.h30_x_cm,
-            state.h30_y_cm,
-            state.encoder_x_cm,
-            state.encoder_y_cm,
+            state.lidar_x_cm,
+            state.lidar_y_cm,
+            state.lidar_yaw_deg,
         };
         send_firewater_values(Driver_UART_DebugTransmit, values, (uint16_t)(sizeof(values) / sizeof(values[0])));
 #endif
+        send_host_pose_frame(&state);
 
         vTaskDelayUntil(&last_wake, period);
     }
