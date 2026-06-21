@@ -2,6 +2,7 @@
 #include "FreeRTOS.h"
 #include "task.h"
 #include "driver_encoder.h"
+#include "driver_dt35.h"
 #include "driver_h30mini.h"
 #include "driver_lidar_pose.h"
 #include "driver_uart.h"
@@ -377,12 +378,15 @@ void StartLocaterTask(void *argument)
         Encoder_Snapshot_t encoder = {0};
         H30Mini_Data_t h30 = {0};
         LidarPose_Data_t lidar = {0};
+        DT35_Data_t dt35 = {0};
         float encoder_dis_p_mm = 0.0f;
         float encoder_dis_q_mm = 0.0f;
 
         Driver_Encoder_GetSnapshot(&encoder);
         Driver_H30Mini_GetData(&h30);
+        Driver_H30Mini_Service();
         Driver_LidarPose_GetData(&lidar);
+        Driver_DT35_GetData(&dt35);
 
         float h30_yaw_deg = h30_corrected_yaw_deg(&h30);
 
@@ -428,6 +432,8 @@ void StartLocaterTask(void *argument)
             .y_total_count = encoder.y_total_count,
             .x_index_seen = encoder.x_index_seen,
             .y_index_seen = encoder.y_index_seen,
+            .x_pulse_seen = encoder.x_pulse_seen,
+            .y_pulse_seen = encoder.y_pulse_seen,
             .h30_valid = h30.valid,
             .h30_has_attitude = h30.has_attitude,
             .h30_has_accel = h30.has_accel,
@@ -464,6 +470,18 @@ void StartLocaterTask(void *argument)
             .lidar_x_cm = s_lidar_x_cm,
             .lidar_y_cm = s_lidar_y_cm,
             .lidar_yaw_deg = s_lidar_yaw_deg,
+            .dt35_1_valid = dt35.sensor_1.valid,
+            .dt35_2_valid = dt35.sensor_2.valid,
+            .dt35_1_raw = dt35.sensor_1.raw,
+            .dt35_2_raw = dt35.sensor_2.raw,
+            .dt35_1_ok_count = dt35.sensor_1.ok_count,
+            .dt35_2_ok_count = dt35.sensor_2.ok_count,
+            .dt35_1_error_count = dt35.sensor_1.error_count,
+            .dt35_2_error_count = dt35.sensor_2.error_count,
+            .dt35_1_last_update_ms = dt35.sensor_1.last_update_ms,
+            .dt35_2_last_update_ms = dt35.sensor_2.last_update_ms,
+            .dt35_1_mm = dt35.sensor_1.valid ? dt35.sensor_1.distance_mm : 0.0f,
+            .dt35_2_mm = dt35.sensor_2.valid ? dt35.sensor_2.distance_mm : 0.0f,
         };
 
         taskENTER_CRITICAL();

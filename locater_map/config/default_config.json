@@ -1,0 +1,100 @@
+{
+  "serial": {
+    "baudrate": 115200,
+    "timeout_ms": 50,
+    "auto_reconnect": true,
+    "default_port": ""
+  },
+  "map": {
+    "field_width_cm": 1215.0,
+    "field_height_cm": 1210.0,
+    "origin": "center",
+    "grid_step_cm": 50.0,
+    "show_grid": true,
+    "show_axes": true,
+    "background_image": "assets/field_prior_map_clean_labeled_1215x1210cm.png",
+    "labeled_background_image": "assets/field_prior_map_clean_labeled_1215x1210cm.png",
+    "prior_map_config": "assets/field_prior_map_config_1215x1210cm.json"
+  },
+  "ui": {
+    "language": "zh"
+  },
+  "robot": {
+    "size_cm": 83.0,
+    "texture_path": "assets/r1_chassis_830mm_texture_1024.png",
+    "texture_front_dir_deg_in_image": 0.0,
+    "yaw_offset_deg": 0.0,
+    "show_body_axes": true,
+    "show_center_cross": true,
+    "show_bounding_box": true,
+    "start_pose_red": {
+      "x_cm": -552.5,
+      "y_cm": 550.0,
+      "yaw_deg": 0.0
+    },
+    "start_pose_blue": {
+      "x_cm": 552.5,
+      "y_cm": 550.0,
+      "yaw_deg": 180.0
+    },
+    "default_start_side": "red",
+    "start_pose_policy": "auto_lidar_offline"
+  },
+  "transform": {
+    "data_x_sign": 1.0,
+    "data_y_sign": 1.0,
+    "data_yaw_sign": 1.0,
+    "data_x_offset_cm": 0.0,
+    "data_y_offset_cm": 0.0,
+    "data_yaw_offset_deg": 0.0
+  },
+  "dt35": {
+    "sensor_1": {
+      "name": "DT35-1(-X 左)",
+      "enabled": true,
+      "offset_x_cm": -24.0,
+      "offset_y_cm": 30.0,
+      "yaw_offset_deg": 180.0,
+      "max_range_cm": 250.0
+    },
+    "sensor_2": {
+      "name": "DT35-2(+X 右)",
+      "enabled": true,
+      "offset_x_cm": 24.0,
+      "offset_y_cm": 30.0,
+      "yaw_offset_deg": 0.0,
+      "max_range_cm": 250.0
+    }
+  },
+  "display": {
+    "ui_fps": 30,
+    "max_trajectory_points": 5000,
+    "trajectory_min_step_cm": 1.0,
+    "follow_robot": true,
+    "dark_theme": true,
+    "show_pos_trajectory": true,
+    "show_calib_trajectory": true,
+    "show_lidar_trajectory": true,
+    "show_dt35": true
+  },
+  "protocol": {
+    "mode": "auto",
+    "allow_no_crc": true,
+    "allow_legacy_csv": true
+  },
+  "logging": {
+    "enabled": true,
+    "root": "logs"
+  },
+  "commands": [
+    {
+      "name": "Zero R",
+      "text": "R"
+    },
+    {
+      "name": "Ping",
+      "text": "PING"
+    }
+  ]
+}
+

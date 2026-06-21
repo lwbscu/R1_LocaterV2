@@ -14,6 +14,7 @@ extern UART_HandleTypeDef huart1;
 extern UART_HandleTypeDef huart2;
 extern UART_HandleTypeDef huart3;
 extern UART_HandleTypeDef huart4;
+extern UART_HandleTypeDef huart5;
 extern TIM_HandleTypeDef htim6;
 
 void NMI_Handler(void)
@@ -83,6 +84,11 @@ void USART3_IRQHandler(void)
 void UART4_IRQHandler(void)
 {
   HAL_UART_IRQHandler(&huart4);
+}
+
+void UART5_IRQHandler(void)
+{
+  HAL_UART_IRQHandler(&huart5);
 }
 
 void TIM6_DAC_IRQHandler(void)

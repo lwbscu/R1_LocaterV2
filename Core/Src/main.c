@@ -54,6 +54,7 @@ int main(void)
   USART1_BootTrace(111U);
 #endif
   MX_UART4_Init();
+  MX_UART5_Init();
   MX_TIM2_Init();
   MX_TIM3_Init();
 #if LOCATER_USART1_BOOT_TEST_ENABLE

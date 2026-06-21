@@ -31,3 +31,7 @@ docs/码盘_2026-06-07.pdf
 docs/码盘_原理图.pdf
 docs/模块化_主控.pdf
 docs/设计架构图.png
+
+# R1 Locater Map local runtime output
+locater_map/logs/
+locater_map/.pytest_cache/

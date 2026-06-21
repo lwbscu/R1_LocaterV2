@@ -1,0 +1,44 @@
+{
+  "asset": "field_prior_map_clean_labeled_1215x1210cm.png",
+  "asset_type": "direct_crop_from_user_manual_figure",
+  "source_image": "985ab48e-314f-411c-a7a4-735d4d04f4cf.png",
+  "crop_box_px": {
+    "left": 301,
+    "top": 173,
+    "right_exclusive": 983,
+    "bottom_exclusive": 852,
+    "width": 682,
+    "height": 679
+  },
+  "do_not_redraw": true,
+  "note": "Use this direct crop as the prior map background if visual element positions must follow the manual figure exactly. The previous vector/redrawn map should not be used for checking long-pole rack or ramp positions.",
+  "field_width_cm": 1215.0,
+  "field_height_cm": 1210.0,
+  "image_width_px": 2430,
+  "image_height_px": 2420,
+  "pixels_per_cm_x": 2.0,
+  "pixels_per_cm_y": 2.0,
+  "origin": "center",
+  "world_coord_cm": {
+    "x_min": -607.5,
+    "x_max": 607.5,
+    "y_min": -605.0,
+    "y_max": 605.0,
+    "x_positive": "right",
+    "y_positive": "up"
+  },
+  "qt_graphics_view_rect_cm": {
+    "x": -607.5,
+    "y": -605.0,
+    "width": 1215.0,
+    "height": 1210.0
+  },
+  "image_pixel_to_world_cm": {
+    "world_x_cm": "pixel_x / 2.0 - 607.5",
+    "world_y_cm": "605.0 - pixel_y / 2.0"
+  },
+  "world_cm_to_image_pixel": {
+    "pixel_x": "(world_x_cm + 607.5) * 2.0",
+    "pixel_y": "(605.0 - world_y_cm) * 2.0"
+  }
+}

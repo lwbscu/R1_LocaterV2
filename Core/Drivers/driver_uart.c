@@ -81,3 +81,14 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 
     (void)HAL_UART_Receive_IT(&huart1, &s_debug_rx_byte, 1U);
 }
+
+void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
+{
+    if (huart == NULL) {
+        return;
+    }
+
+    if (huart->Instance == UART4) {
+        Driver_H30Mini_ErrorCallback(huart);
+    }
+}

@@ -2,7 +2,7 @@
 /**
   ******************************************************************************
   * @file    usart.c
-  * @brief   USART1, USART2, USART3 and UART4 configuration.
+  * @brief   USART1, USART2, USART3, UART4 and UART5 configuration.
   ******************************************************************************
  */
 /* USER CODE END Header */
@@ -14,6 +14,7 @@ UART_HandleTypeDef huart1;
 UART_HandleTypeDef huart2;
 UART_HandleTypeDef huart3;
 UART_HandleTypeDef huart4;
+UART_HandleTypeDef huart5;
 
 void MX_USART1_UART_Init(void)
 {
@@ -86,6 +87,37 @@ void MX_UART4_Init(void)
     huart4.Init.ClockPrescaler = UART_PRESCALER_DIV1;
     huart4.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
     if (HAL_UART_Init(&huart4) != HAL_OK)
+    {
+        Error_Handler();
+    }
+}
+
+void MX_UART5_Init(void)
+{
+    huart5.Instance = UART5;
+    huart5.Init.BaudRate = LOCATER_UART5_BAUDRATE;
+    huart5.Init.WordLength = UART_WORDLENGTH_8B;
+    huart5.Init.StopBits = UART_STOPBITS_1;
+    huart5.Init.Parity = UART_PARITY_NONE;
+    huart5.Init.Mode = UART_MODE_TX_RX;
+    huart5.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+    huart5.Init.OverSampling = UART_OVERSAMPLING_16;
+    huart5.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
+    huart5.Init.ClockPrescaler = UART_PRESCALER_DIV1;
+    huart5.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
+    if (HAL_UART_Init(&huart5) != HAL_OK)
+    {
+        Error_Handler();
+    }
+    if (HAL_UARTEx_SetTxFifoThreshold(&huart5, UART_TXFIFO_THRESHOLD_1_8) != HAL_OK)
+    {
+        Error_Handler();
+    }
+    if (HAL_UARTEx_SetRxFifoThreshold(&huart5, UART_RXFIFO_THRESHOLD_1_8) != HAL_OK)
+    {
+        Error_Handler();
+    }
+    if (HAL_UARTEx_DisableFifoMode(&huart5) != HAL_OK)
     {
         Error_Handler();
     }
@@ -188,6 +220,32 @@ void HAL_UART_MspInit(UART_HandleTypeDef* uartHandle)
         HAL_NVIC_SetPriority(UART4_IRQn, 5, 0);
         HAL_NVIC_EnableIRQ(UART4_IRQn);
     }
+    else if(uartHandle->Instance==UART5)
+    {
+        PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_UART5;
+        PeriphClkInit.Uart5ClockSelection = RCC_UART5CLKSOURCE_PCLK1;
+        if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
+        {
+            Error_Handler();
+        }
+
+        __HAL_RCC_UART5_CLK_ENABLE();
+        __HAL_RCC_GPIOC_CLK_ENABLE();
+        __HAL_RCC_GPIOD_CLK_ENABLE();
+
+        GPIO_InitStruct.Pin = GPIO_PIN_12;
+        GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+        GPIO_InitStruct.Pull = GPIO_PULLUP;
+        GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+        GPIO_InitStruct.Alternate = GPIO_AF5_UART5;
+        HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
+        GPIO_InitStruct.Pin = GPIO_PIN_2;
+        HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
+
+        HAL_NVIC_SetPriority(UART5_IRQn, 5, 0);
+        HAL_NVIC_EnableIRQ(UART5_IRQn);
+    }
 }
 
 void HAL_UART_MspDeInit(UART_HandleTypeDef* uartHandle)
@@ -216,5 +274,12 @@ void HAL_UART_MspDeInit(UART_HandleTypeDef* uartHandle)
         __HAL_RCC_UART4_CLK_DISABLE();
         HAL_GPIO_DeInit(GPIOC, GPIO_PIN_10|GPIO_PIN_11);
         HAL_NVIC_DisableIRQ(UART4_IRQn);
+    }
+    else if(uartHandle->Instance==UART5)
+    {
+        __HAL_RCC_UART5_CLK_DISABLE();
+        HAL_GPIO_DeInit(GPIOC, GPIO_PIN_12);
+        HAL_GPIO_DeInit(GPIOD, GPIO_PIN_2);
+        HAL_NVIC_DisableIRQ(UART5_IRQn);
     }
 }

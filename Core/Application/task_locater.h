@@ -14,6 +14,8 @@ typedef struct {
     int32_t y_total_count;
     bool x_index_seen;
     bool y_index_seen;
+    bool x_pulse_seen;
+    bool y_pulse_seen;
     bool h30_valid;
     bool h30_has_attitude;
     bool h30_has_accel;
@@ -50,6 +52,18 @@ typedef struct {
     float lidar_x_cm;
     float lidar_y_cm;
     float lidar_yaw_deg;
+    bool dt35_1_valid;
+    bool dt35_2_valid;
+    uint16_t dt35_1_raw;
+    uint16_t dt35_2_raw;
+    uint32_t dt35_1_ok_count;
+    uint32_t dt35_2_ok_count;
+    uint32_t dt35_1_error_count;
+    uint32_t dt35_2_error_count;
+    uint32_t dt35_1_last_update_ms;
+    uint32_t dt35_2_last_update_ms;
+    float dt35_1_mm;
+    float dt35_2_mm;
 } Locater_State_t;
 
 void StartLocaterTask(void *argument);

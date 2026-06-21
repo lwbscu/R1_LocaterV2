@@ -33,6 +33,8 @@ typedef struct {
 
 void Driver_H30Mini_Init(void);
 void Driver_H30Mini_GetData(H30Mini_Data_t *data);
+void Driver_H30Mini_Service(void);
 void Driver_H30Mini_RxCpltCallback(UART_HandleTypeDef *huart);
+void Driver_H30Mini_ErrorCallback(UART_HandleTypeDef *huart);
 
 #endif /* DRIVER_H30MINI_H */

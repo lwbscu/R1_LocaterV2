@@ -56,6 +56,22 @@ static void restart_rx_it(void)
     (void)HAL_UART_Receive_IT(&huart4, &s_rx_byte, 1U);
 }
 
+static void force_restart_rx_it(void)
+{
+    CLEAR_BIT(huart4.Instance->CR1, USART_CR1_RXNEIE_RXFNEIE);
+    CLEAR_BIT(huart4.Instance->CR3, USART_CR3_EIE);
+    __HAL_UART_CLEAR_FLAG(&huart4,
+                          UART_CLEAR_OREF |
+                          UART_CLEAR_NEF |
+                          UART_CLEAR_FEF |
+                          UART_CLEAR_PEF);
+
+    huart4.RxState = HAL_UART_STATE_READY;
+    huart4.ErrorCode = HAL_UART_ERROR_NONE;
+    s_frame_len = 0U;
+    restart_rx_it();
+}
+
 static void parse_payload_item(uint8_t id, const uint8_t *data, uint8_t len, H30Mini_Data_t *next)
 {
     if (data == NULL || next == NULL) {
@@ -207,7 +223,7 @@ void Driver_H30Mini_Init(void)
     s_frame_len = 0U;
     __set_PRIMASK(primask);
 
-    restart_rx_it();
+    force_restart_rx_it();
 }
 
 void Driver_H30Mini_GetData(H30Mini_Data_t *data)
@@ -222,6 +238,18 @@ void Driver_H30Mini_GetData(H30Mini_Data_t *data)
     __set_PRIMASK(primask);
 }
 
+void Driver_H30Mini_Service(void)
+{
+    if (huart4.Instance != UART4) {
+        return;
+    }
+
+    if ((huart4.Instance->CR1 & USART_CR1_RXNEIE_RXFNEIE) == 0U ||
+        huart4.RxState != HAL_UART_STATE_BUSY_RX) {
+        force_restart_rx_it();
+    }
+}
+
 void Driver_H30Mini_RxCpltCallback(UART_HandleTypeDef *huart)
 {
     if (huart == NULL || huart->Instance != UART4) {
@@ -230,4 +258,14 @@ void Driver_H30Mini_RxCpltCallback(UART_HandleTypeDef *huart)
 
     feed_byte(s_rx_byte);
     restart_rx_it();
+}
+
+void Driver_H30Mini_ErrorCallback(UART_HandleTypeDef *huart)
+{
+    if (huart == NULL || huart->Instance != UART4) {
+        return;
+    }
+
+    s_h30_data.frame_error_count++;
+    force_restart_rx_it();
 }

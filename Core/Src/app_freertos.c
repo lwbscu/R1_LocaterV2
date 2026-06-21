@@ -15,6 +15,7 @@
 /* USER CODE BEGIN Includes */
 extern void StartLocaterTask(void *argument);
 extern void StartTelemetryTask(void *argument);
+extern void StartDT35Task(void *argument);
 /* USER CODE END Includes */
 
 osThreadId_t TaskLocaterHandle;
@@ -31,8 +32,16 @@ const osThreadAttr_t TaskTelemetry_attributes = {
         .priority = (osPriority_t) osPriorityLow,
 };
 
+osThreadId_t TaskDT35Handle;
+const osThreadAttr_t TaskDT35_attributes = {
+        .name = "TaskDT35",
+        .stack_size = 512 * 4,
+        .priority = (osPriority_t) osPriorityLow,
+};
+
 void MX_FREERTOS_Init(void)
 {
     TaskLocaterHandle = osThreadNew(StartLocaterTask, NULL, &TaskLocater_attributes);
     TaskTelemetryHandle = osThreadNew(StartTelemetryTask, NULL, &TaskTelemetry_attributes);
+    TaskDT35Handle = osThreadNew(StartDT35Task, NULL, &TaskDT35_attributes);
 }

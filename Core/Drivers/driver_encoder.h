@@ -14,6 +14,8 @@ typedef struct {
     int32_t y_total_count;
     bool x_index_seen;
     bool y_index_seen;
+    bool x_pulse_seen;
+    bool y_pulse_seen;
 } Encoder_Snapshot_t;
 
 void Driver_Encoder_Init(void);

@@ -8,6 +8,8 @@ static int32_t s_x_total_count;
 static int32_t s_y_total_count;
 static volatile bool s_x_index_seen;
 static volatile bool s_y_index_seen;
+static bool s_x_pulse_seen;
+static bool s_y_pulse_seen;
 
 static int32_t encoder_delta_32(uint32_t now, uint32_t previous)
 {
@@ -42,6 +44,8 @@ void Driver_Encoder_Reset(void)
     s_y_total_count = 0;
     s_x_index_seen = false;
     s_y_index_seen = false;
+    s_x_pulse_seen = false;
+    s_y_pulse_seen = false;
 }
 
 void Driver_Encoder_GetSnapshot(Encoder_Snapshot_t *snapshot)
@@ -65,6 +69,12 @@ void Driver_Encoder_GetSnapshot(Encoder_Snapshot_t *snapshot)
 
     s_x_total_count += x_delta;
     s_y_total_count += y_delta;
+    if (x_delta != 0) {
+        s_x_pulse_seen = true;
+    }
+    if (y_delta != 0) {
+        s_y_pulse_seen = true;
+    }
     s_x_prev_raw = x_now;
     s_y_prev_raw = y_now;
 
@@ -76,6 +86,8 @@ void Driver_Encoder_GetSnapshot(Encoder_Snapshot_t *snapshot)
     snapshot->y_total_count = s_y_total_count;
     snapshot->x_index_seen = s_x_index_seen;
     snapshot->y_index_seen = s_y_index_seen;
+    snapshot->x_pulse_seen = s_x_pulse_seen;
+    snapshot->y_pulse_seen = s_y_pulse_seen;
 }
 
 void Driver_Encoder_ClearIndexFlags(void)
