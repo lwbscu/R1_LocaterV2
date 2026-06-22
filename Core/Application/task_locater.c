@@ -61,6 +61,23 @@ static float angle_to_rad(float angle)
     return angle * (LOCATER_PI / 180.0f);
 }
 
+static void get_start_pose(float *x_cm, float *y_cm, float *yaw_deg)
+{
+    if (x_cm == NULL || y_cm == NULL || yaw_deg == NULL) {
+        return;
+    }
+
+#if LOCATER_HOST_START_SIDE == LOCATER_HOST_START_SIDE_BLUE
+    *x_cm = LOCATER_HOST_BLUE_START_X_CM;
+    *y_cm = LOCATER_HOST_BLUE_START_Y_CM;
+    *yaw_deg = LOCATER_HOST_BLUE_START_YAW_DEG;
+#else
+    *x_cm = LOCATER_HOST_RED_START_X_CM;
+    *y_cm = LOCATER_HOST_RED_START_Y_CM;
+    *yaw_deg = LOCATER_HOST_RED_START_YAW_DEG;
+#endif
+}
+
 static float apply_deadband(float value, float deadband)
 {
     if (fabsf(value) <= deadband) {
@@ -130,6 +147,22 @@ static bool lidar_to_chassis_abs_pose(const LidarPose_Data_t *lidar,
              LOCATER_LIDAR_OFFSET_Y_CM * cos_yaw) +
             LOCATER_LIDAR_OFFSET_Y_CM;
     *yaw_deg = yaw;
+
+#if LOCATER_LIDAR_POSE_IS_START_LOCAL
+    float start_x_cm = 0.0f;
+    float start_y_cm = 0.0f;
+    float start_yaw_deg = 0.0f;
+    const float local_x_cm = *x_cm;
+    const float local_y_cm = *y_cm;
+
+    get_start_pose(&start_x_cm, &start_y_cm, &start_yaw_deg);
+    const float start_yaw_rad = angle_to_rad(start_yaw_deg);
+    const float start_sin = sinf(start_yaw_rad);
+    const float start_cos = cosf(start_yaw_rad);
+    *x_cm = start_x_cm + local_x_cm * start_cos - local_y_cm * start_sin;
+    *y_cm = start_y_cm + local_x_cm * start_sin + local_y_cm * start_cos;
+    *yaw_deg = angle_normal_deg(*yaw_deg + start_yaw_deg);
+#endif
 
     return true;
 }

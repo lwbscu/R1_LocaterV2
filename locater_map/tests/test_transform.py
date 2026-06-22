@@ -1,5 +1,15 @@
+import json
+from pathlib import Path
+
 from locater_map.data_model import RobotFrame
-from locater_map.utils_transform import dt35_ray, transform_frame, transform_xy_yaw
+from locater_map.utils_transform import (
+    dt35_ray,
+    dt35_yaw_from_frame,
+    expected_dt35_hit,
+    robot_local_to_world,
+    transform_frame,
+    transform_xy_yaw,
+)
 
 
 def test_transform_xy_yaw():
@@ -26,10 +36,143 @@ def test_transform_frame_applies_all_pose_groups():
 
 
 def test_dt35_ray_formula():
-    cfg = {"name": "s1", "enabled": True, "offset_x_cm": 10, "offset_y_cm": 0, "yaw_offset_deg": 0, "max_range_cm": 100}
+    cfg = {"name": "s1", "enabled": True, "offset_x_cm": 10, "offset_y_cm": 0, "yaw_offset_deg": 90, "max_range_cm": 100}
     ray = dt35_ray(0, 0, 0, cfg, 500)
     assert round(float(ray["sensor_x_cm"]), 3) == 10
     assert round(float(ray["sensor_y_cm"]), 3) == 0
     assert round(float(ray["hit_x_cm"]), 3) == 60
     assert round(float(ray["hit_y_cm"]), 3) == 0
     assert ray["valid"] is True
+
+
+def test_dt35_yaw_uses_h30_when_attitude_is_valid():
+    assert dt35_yaw_from_frame(RobotFrame(pos_yaw_deg=30.0, h30_yaw_deg=5.0, h30_valid=True)) == 5.0
+    assert dt35_yaw_from_frame(RobotFrame(pos_yaw_deg=30.0, h30_yaw_deg=6.0, h30_has_attitude=True)) == 6.0
+    assert dt35_yaw_from_frame(RobotFrame(pos_yaw_deg=30.0, h30_yaw_deg=5.0)) == 30.0
+
+
+def test_robot_local_to_world_yaw_front_definition():
+    assert tuple(round(v, 3) for v in robot_local_to_world(0, 0, 0, 40.4, -3.3)) == (40.4, -3.3)
+    assert tuple(round(v, 3) for v in robot_local_to_world(0, 0, 90, 40.4, -3.3)) == (-3.3, -40.4)
+
+
+def test_dt35_v2_mounting_left_and_right_rays():
+    s1 = {"enabled": True, "offset_x_cm": 40.4, "offset_y_cm": -3.3, "yaw_offset_deg": -90, "max_range_cm": 1000}
+    s2 = {"enabled": True, "offset_x_cm": -40.4, "offset_y_cm": -3.3, "yaw_offset_deg": 90, "max_range_cm": 1000}
+    r1 = dt35_ray(0, 0, 0, s1, 1000)
+    r2 = dt35_ray(0, 0, 0, s2, 1000)
+    assert round(float(r1["sensor_x_cm"]), 3) == 40.4
+    assert round(float(r1["sensor_y_cm"]), 3) == -3.3
+    assert round(float(r1["hit_x_cm"]), 3) == -59.6
+    assert round(float(r1["hit_y_cm"]), 3) == -3.3
+    assert round(float(r2["sensor_x_cm"]), 3) == -40.4
+    assert round(float(r2["sensor_y_cm"]), 3) == -3.3
+    assert round(float(r2["hit_x_cm"]), 3) == 59.6
+    assert round(float(r2["hit_y_cm"]), 3) == -3.3
+
+
+def test_dt35_expected_hit_with_field_boundary():
+    model = {"enabled": True, "use_field_boundary": True, "field_width_cm": 200, "field_height_cm": 100}
+    hit = expected_dt35_hit(40, 0, -90, model)
+    assert hit is not None
+    assert hit["name"] == "field_left"
+    assert hit["target_type"] == "usable_wall"
+    assert hit["correction_allowed"] == "1"
+    assert round(float(hit["incidence_deg"]), 3) == 0.0
+    assert round(float(hit["incidence_scale"]), 3) == 1.0
+    assert round(float(hit["distance_cm"]), 3) == 140
+    assert round(float(hit["hit_x_cm"]), 3) == -100
+    assert round(float(hit["hit_y_cm"]), 3) == 0
+
+
+def test_dt35_blocker_stops_before_wall_and_disables_correction():
+    model = {
+        "enabled": True,
+        "use_field_boundary": True,
+        "field_width_cm": 200,
+        "field_height_cm": 100,
+        "rectangles": [
+            {"name": "forest", "target_type": "blocker", "center_x_cm": -30, "center_y_cm": 0, "width_cm": 10, "height_cm": 20}
+        ],
+    }
+    hit = expected_dt35_hit(0, 0, -90, model)
+    assert hit is not None
+    assert hit["name"] == "forest_right"
+    assert hit["target_type"] == "blocker"
+    assert hit["correction_allowed"] == "0"
+    assert round(float(hit["distance_cm"]), 3) == 25
+
+
+def test_dt35_solid_obstacle_stops_before_wall_and_allows_weighted_correction():
+    model = {
+        "enabled": True,
+        "use_field_boundary": True,
+        "field_width_cm": 200,
+        "field_height_cm": 100,
+        "rectangles": [
+            {
+                "name": "forest",
+                "target_type": "solid_obstacle",
+                "correction_weight": 0.65,
+                "center_x_cm": -30,
+                "center_y_cm": 0,
+                "width_cm": 10,
+                "height_cm": 20,
+            }
+        ],
+    }
+    hit = expected_dt35_hit(0, 0, -90, model)
+    assert hit is not None
+    assert hit["name"] == "forest_right"
+    assert hit["target_type"] == "solid_obstacle"
+    assert hit["correction_allowed"] == "1"
+    assert float(hit["correction_weight"]) == 0.65
+    assert round(float(hit["distance_cm"]), 3) == 25
+
+
+def test_dt35_ignore_segment_disables_correction():
+    model = {
+        "enabled": True,
+        "use_field_boundary": True,
+        "field_width_cm": 200,
+        "field_height_cm": 100,
+        "segments": [
+            {"name": "pole_gap", "target_type": "ignore", "x1_cm": -10, "y1_cm": -10, "x2_cm": -10, "y2_cm": 10}
+        ],
+    }
+    hit = expected_dt35_hit(0, 0, -90, model)
+    assert hit is not None
+    assert hit["name"] == "pole_gap"
+    assert hit["target_type"] == "ignore"
+    assert hit["correction_allowed"] == "0"
+
+
+def test_dt35_grazing_incidence_disables_correction():
+    model = {
+        "enabled": True,
+        "use_field_boundary": False,
+        "max_correction_incidence_deg": 75.0,
+        "segments": [
+            {"name": "top_wall", "target_type": "usable_wall", "x1_cm": -100.0, "y1_cm": 10.0, "x2_cm": 100.0, "y2_cm": 10.0}
+        ],
+    }
+    hit = expected_dt35_hit(0, 0, 80, model)
+
+    assert hit is not None
+    assert hit["name"] == "top_wall"
+    assert round(float(hit["incidence_deg"]), 3) == 80.0
+    assert hit["correction_allowed"] == "0"
+
+
+def test_default_config_ramp_zone_uses_manual_detail_footprint():
+    config_path = Path(__file__).resolve().parents[1] / "config" / "default_config.json"
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    ramps = [item for item in config["field_model"]["rectangles"] if "ramp_zone_450h" in item["name"]]
+
+    assert len(ramps) == 2
+    for ramp in ramps:
+        assert ramp["target_type"] == "solid_obstacle"
+        assert ramp["width_cm"] == 150.0
+        assert ramp["height_cm"] == 150.0
+        assert ramp["center_y_cm"] == -420.0
+        assert ramp["correction_weight"] == 0.35

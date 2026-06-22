@@ -132,41 +132,27 @@ static bool dt35_frame_is_valid(const uint8_t *frame, uint8_t expected_id)
 
 static bool dt35_receive_response(DT35_SensorData_t *sensor, uint8_t expected_id, uint8_t *response)
 {
-    uint8_t window[DT35_RESPONSE_LEN] = {0};
-    uint8_t window_len = 0U;
-    const uint32_t start_ms = HAL_GetTick();
+    if (sensor == NULL || response == NULL) {
+        return false;
+    }
 
-    while ((HAL_GetTick() - start_ms) <= LOCATER_DT35_UART_RX_TIMEOUT_MS) {
-        uint8_t byte = 0U;
-        if (HAL_UART_Receive(&huart5, &byte, 1U, LOCATER_DT35_UART_BYTE_TIMEOUT_MS) != HAL_OK) {
-            continue;
-        }
+    if (HAL_UART_Receive(&huart5, response, DT35_RESPONSE_LEN,
+                         LOCATER_DT35_UART_RX_TIMEOUT_MS) != HAL_OK) {
+        return false;
+    }
 
+    taskENTER_CRITICAL();
+    sensor->rx_byte_count += DT35_RESPONSE_LEN;
+    taskEXIT_CRITICAL();
+
+    if (!dt35_frame_is_valid(response, expected_id)) {
         taskENTER_CRITICAL();
-        sensor->rx_byte_count++;
+        sensor->frame_error_count++;
         taskEXIT_CRITICAL();
-
-        if (window_len < DT35_RESPONSE_LEN) {
-            window[window_len++] = byte;
-        } else {
-            memmove(&window[0], &window[1], DT35_RESPONSE_LEN - 1U);
-            window[DT35_RESPONSE_LEN - 1U] = byte;
-        }
-
-        if (window_len == DT35_RESPONSE_LEN && dt35_frame_is_valid(window, expected_id)) {
-            memcpy(response, window, DT35_RESPONSE_LEN);
-            return true;
-        }
+        return false;
     }
 
-    if (window_len >= DT35_RESPONSE_LEN) {
-        if (sensor != NULL) {
-            taskENTER_CRITICAL();
-            sensor->frame_error_count++;
-            taskEXIT_CRITICAL();
-        }
-    }
-    return false;
+    return true;
 }
 
 static bool dt35_try_read_id(DT35_SensorData_t *sensor,
@@ -267,6 +253,30 @@ static void dt35_read_sensor(DT35_SensorData_t *sensor,
     dt35_mark_error(sensor, last_error);
 }
 
+static bool dt35_should_poll_sensor(const DT35_SensorData_t *sensor, uint32_t *recovery_divider)
+{
+    if (sensor == NULL || recovery_divider == NULL) {
+        return true;
+    }
+
+    if (HAL_GetTick() < LOCATER_DT35_STARTUP_FULL_POLL_MS) {
+        return true;
+    }
+
+    if (sensor->valid || sensor->consecutive_errors < LOCATER_DT35_MAX_CONSECUTIVE_ERRORS) {
+        *recovery_divider = 0U;
+        return true;
+    }
+
+    (*recovery_divider)++;
+    if (*recovery_divider >= LOCATER_DT35_RECOVERY_POLL_DIVIDER) {
+        *recovery_divider = 0U;
+        return true;
+    }
+
+    return false;
+}
+
 void Driver_DT35_Init(void)
 {
     dt35_init_sensor(&s_dt35_data.sensor_1, LOCATER_DT35_SENSOR_1_ID);
@@ -295,18 +305,24 @@ void StartDT35Task(void *argument)
     TickType_t last_wake = xTaskGetTickCount();
     const TickType_t period = pdMS_TO_TICKS(LOCATER_DT35_TASK_PERIOD_MS);
     bool read_sensor_2_next = false;
+    uint32_t sensor_1_recovery_divider = 0U;
+    uint32_t sensor_2_recovery_divider = 0U;
 
     for (;;) {
 #if LOCATER_DT35_ONLY_SENSOR_2_TEST
         dt35_read_sensor(&s_dt35_data.sensor_2, &s_dt35_cal_2, 0U);
 #else
         if (read_sensor_2_next) {
-            const uint8_t skip_id = s_dt35_data.sensor_1.valid ? s_dt35_data.sensor_1.active_id : 0U;
-            dt35_read_sensor(&s_dt35_data.sensor_2, &s_dt35_cal_2, skip_id);
+            if (dt35_should_poll_sensor(&s_dt35_data.sensor_2, &sensor_2_recovery_divider)) {
+                const uint8_t skip_id = s_dt35_data.sensor_1.valid ? s_dt35_data.sensor_1.active_id : 0U;
+                dt35_read_sensor(&s_dt35_data.sensor_2, &s_dt35_cal_2, skip_id);
+            }
             read_sensor_2_next = false;
         } else {
-            const uint8_t skip_id = s_dt35_data.sensor_2.valid ? s_dt35_data.sensor_2.active_id : 0U;
-            dt35_read_sensor(&s_dt35_data.sensor_1, &s_dt35_cal_1, skip_id);
+            if (dt35_should_poll_sensor(&s_dt35_data.sensor_1, &sensor_1_recovery_divider)) {
+                const uint8_t skip_id = s_dt35_data.sensor_2.valid ? s_dt35_data.sensor_2.active_id : 0U;
+                dt35_read_sensor(&s_dt35_data.sensor_1, &s_dt35_cal_1, skip_id);
+            }
             read_sensor_2_next = true;
         }
 #endif

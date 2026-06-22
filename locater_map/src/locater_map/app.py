@@ -16,6 +16,7 @@ def run_app(
     baudrate: int | None = None,
     duration_s: float | None = None,
     screenshot_path: str | None = None,
+    capture_on_start: bool = False,
 ) -> int:
     config = load_config(config_path)
     app = QApplication(sys.argv)
@@ -28,6 +29,7 @@ def run_app(
         baudrate=baudrate,
         duration_s=duration_s,
         screenshot_path=screenshot_path,
+        capture_on_start=capture_on_start,
     )
     window.show()
     return app.exec()

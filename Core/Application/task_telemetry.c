@@ -3,6 +3,7 @@
 #include "task.h"
 #include "driver_uart.h"
 #include "locater_config.h"
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -13,6 +14,7 @@ static void send_locater_csv_v3(TelemetryTransmit_t transmit, const Locater_Stat
 static void send_locater_diag_csv(TelemetryTransmit_t transmit, const Locater_State_t *state);
 static void send_host_pose_frame(const Locater_State_t *state);
 static void get_host_pose_values(const Locater_State_t *state, float values[LOCATER_HOST_FRAME_FLOAT_COUNT]);
+static void get_host_start_pose(float *x_cm, float *y_cm, float *yaw_deg);
 
 static int append_char(char *line, size_t line_size, int offset, char value)
 {
@@ -190,6 +192,11 @@ static float host_wrap_yaw_deg(float angle)
     return angle;
 }
 
+static float host_deg_to_rad(float angle)
+{
+    return angle * (LOCATER_PI / 180.0f);
+}
+
 static void get_host_start_pose(float *x_cm, float *y_cm, float *yaw_deg)
 {
     if (x_cm == NULL || y_cm == NULL || yaw_deg == NULL) {
@@ -207,6 +214,29 @@ static void get_host_start_pose(float *x_cm, float *y_cm, float *yaw_deg)
 #endif
 }
 
+static void apply_host_start_pose(float *x_cm, float *y_cm, float *yaw_deg)
+{
+    if (x_cm == NULL || y_cm == NULL || yaw_deg == NULL) {
+        return;
+    }
+
+    float start_x_cm = 0.0f;
+    float start_y_cm = 0.0f;
+    float start_yaw_deg = 0.0f;
+    const float local_x_cm = *x_cm;
+    const float local_y_cm = *y_cm;
+
+    get_host_start_pose(&start_x_cm, &start_y_cm, &start_yaw_deg);
+
+    const float start_yaw_rad = host_deg_to_rad(start_yaw_deg);
+    const float start_sin = sinf(start_yaw_rad);
+    const float start_cos = cosf(start_yaw_rad);
+
+    *x_cm = start_x_cm + local_x_cm * start_cos - local_y_cm * start_sin;
+    *y_cm = start_y_cm + local_x_cm * start_sin + local_y_cm * start_cos;
+    *yaw_deg = host_wrap_yaw_deg(*yaw_deg + start_yaw_deg);
+}
+
 static void get_host_pose_values(const Locater_State_t *state, float values[LOCATER_HOST_FRAME_FLOAT_COUNT])
 {
     if (state == NULL || values == NULL) {
@@ -219,14 +249,7 @@ static void get_host_pose_values(const Locater_State_t *state, float values[LOCA
 
 #if LOCATER_HOST_OFFSET_LOCAL_ODOM
     if (!state->lidar_valid) {
-        float start_x_cm = 0.0f;
-        float start_y_cm = 0.0f;
-        float start_yaw_deg = 0.0f;
-
-        get_host_start_pose(&start_x_cm, &start_y_cm, &start_yaw_deg);
-        x_cm += start_x_cm;
-        y_cm += start_y_cm;
-        yaw_deg += start_yaw_deg;
+        apply_host_start_pose(&x_cm, &y_cm, &yaw_deg);
     }
 #endif
 
@@ -238,6 +261,12 @@ static void get_host_pose_values(const Locater_State_t *state, float values[LOCA
     values[5] = state->lidar_yaw_deg;
     values[6] = state->encoder_x_cm;
     values[7] = state->encoder_y_cm;
+#if LOCATER_LIDAR_POSE_IS_START_LOCAL
+    if (state->lidar_valid) {
+        float encoder_yaw_deg = 0.0f;
+        apply_host_start_pose(&values[6], &values[7], &encoder_yaw_deg);
+    }
+#endif
     values[8] = state->h30_yaw_deg;
     values[9] = state->dt35_1_mm;
     values[10] = state->dt35_2_mm;
@@ -277,6 +306,15 @@ static void send_locater_csv_v3(TelemetryTransmit_t transmit, const Locater_Stat
     int len = 0;
     bool first = true;
     const uint32_t status = locater_status_mask(state);
+    float encoder_x_cm = state->encoder_x_cm;
+    float encoder_y_cm = state->encoder_y_cm;
+
+#if LOCATER_LIDAR_POSE_IS_START_LOCAL
+    if (state->lidar_valid) {
+        float encoder_yaw_deg = 0.0f;
+        apply_host_start_pose(&encoder_x_cm, &encoder_y_cm, &encoder_yaw_deg);
+    }
+#endif
 
 #define APPEND_F3(value_)                         \
     do {                                          \
@@ -296,8 +334,8 @@ static void send_locater_csv_v3(TelemetryTransmit_t transmit, const Locater_Stat
     APPEND_F3(state->lidar_x_cm);
     APPEND_F3(state->lidar_y_cm);
     APPEND_F3(state->lidar_yaw_deg);
-    APPEND_F3(state->encoder_x_cm);
-    APPEND_F3(state->encoder_y_cm);
+    APPEND_F3(encoder_x_cm);
+    APPEND_F3(encoder_y_cm);
     APPEND_F3(state->h30_yaw_deg);
     APPEND_F3(state->dt35_1_mm);
     APPEND_F3(state->dt35_2_mm);

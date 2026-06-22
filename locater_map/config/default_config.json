@@ -50,21 +50,161 @@
   },
   "dt35": {
     "sensor_1": {
-      "name": "DT35-1(-X 左)",
+      "name": "DT35-1 right mount, left ray",
       "enabled": true,
-      "offset_x_cm": -24.0,
-      "offset_y_cm": 30.0,
-      "yaw_offset_deg": 180.0,
+      "offset_x_cm": 40.4,
+      "offset_y_cm": -3.3,
+      "yaw_offset_deg": -90.0,
       "max_range_cm": 250.0
     },
     "sensor_2": {
-      "name": "DT35-2(+X 右)",
+      "name": "DT35-2 left mount, right ray",
       "enabled": true,
-      "offset_x_cm": 24.0,
-      "offset_y_cm": 30.0,
-      "yaw_offset_deg": 0.0,
+      "offset_x_cm": -40.4,
+      "offset_y_cm": -3.3,
+      "yaw_offset_deg": 90.0,
       "max_range_cm": 250.0
     }
+  },
+  "field_model": {
+    "enabled": true,
+    "use_field_boundary": true,
+    "residual_warn_cm": 8.0,
+    "max_correction_incidence_deg": 75.0,
+    "corner_ambiguity_cm": 3.0,
+    "incidence_weight_power": 1.0,
+    "validation_max_fused_rms_xy_cm": 8.0,
+    "validation_min_improvement_cm": 0.0,
+    "validation_min_target_rays": 3,
+    "validation_min_valid_usable_rate": 0.7,
+    "validation_min_real_frames": 30,
+    "validation_min_dt35_sensor_frames": 5,
+    "validation_min_lidar_frames": 5,
+    "validation_min_h30_frames": 5,
+    "segments": [
+      {
+        "name": "upper_red_r1_r2_wall",
+        "target_type": "usable_wall",
+        "x1_cm": -607.5,
+        "y1_cm": 405.0,
+        "x2_cm": 0.0,
+        "y2_cm": 405.0
+      },
+      {
+        "name": "upper_blue_r1_r2_wall",
+        "target_type": "usable_wall",
+        "x1_cm": 0.0,
+        "y1_cm": 405.0,
+        "x2_cm": 607.5,
+        "y2_cm": 405.0
+      },
+      {
+        "name": "lower_used_weapon_wall",
+        "target_type": "usable_wall",
+        "x1_cm": -450.0,
+        "y1_cm": -270.0,
+        "x2_cm": 450.0,
+        "y2_cm": -270.0
+      },
+      {
+        "name": "center_divider_wall",
+        "target_type": "usable_wall",
+        "x1_cm": 0.0,
+        "y1_cm": -605.0,
+        "x2_cm": 0.0,
+        "y2_cm": 605.0
+      },
+      {
+        "name": "top_red_long_pole_ignore",
+        "target_type": "ignore",
+        "correction_weight": 0.0,
+        "x1_cm": -430.0,
+        "y1_cm": 560.0,
+        "x2_cm": -300.0,
+        "y2_cm": 560.0
+      },
+      {
+        "name": "top_blue_long_pole_ignore",
+        "target_type": "ignore",
+        "correction_weight": 0.0,
+        "x1_cm": 300.0,
+        "y1_cm": 560.0,
+        "x2_cm": 430.0,
+        "y2_cm": 560.0
+      }
+    ],
+    "rectangles": [
+      {
+        "name": "top_red_long_pole_rack_ignore",
+        "target_type": "ignore",
+        "correction_weight": 0.0,
+        "center_x_cm": -365.0,
+        "center_y_cm": 560.0,
+        "width_cm": 130.0,
+        "height_cm": 18.0
+      },
+      {
+        "name": "top_blue_long_pole_rack_ignore",
+        "target_type": "ignore",
+        "correction_weight": 0.0,
+        "center_x_cm": 365.0,
+        "center_y_cm": 560.0,
+        "width_cm": 130.0,
+        "height_cm": 18.0
+      },
+      {
+        "name": "red_forest_obstacle",
+        "target_type": "solid_obstacle",
+        "correction_weight": 0.65,
+        "center_x_cm": -307.5,
+        "center_y_cm": 45.0,
+        "width_cm": 360.0,
+        "height_cm": 480.0
+      },
+      {
+        "name": "blue_forest_obstacle",
+        "target_type": "solid_obstacle",
+        "correction_weight": 0.65,
+        "center_x_cm": 307.5,
+        "center_y_cm": 45.0,
+        "width_cm": 360.0,
+        "height_cm": 480.0
+      },
+      {
+        "name": "red_left_ramp_zone_450h",
+        "target_type": "solid_obstacle",
+        "correction_weight": 0.35,
+        "center_x_cm": -532.5,
+        "center_y_cm": -420.0,
+        "width_cm": 150.0,
+        "height_cm": 150.0
+      },
+      {
+        "name": "blue_right_ramp_zone_450h",
+        "target_type": "solid_obstacle",
+        "correction_weight": 0.35,
+        "center_x_cm": 532.5,
+        "center_y_cm": -420.0,
+        "width_cm": 150.0,
+        "height_cm": 150.0
+      },
+      {
+        "name": "top_center_end_rack_wall",
+        "target_type": "usable_wall",
+        "center_x_cm": 0.0,
+        "center_y_cm": 510.0,
+        "width_cm": 30.0,
+        "height_cm": 120.0
+      },
+      {
+        "name": "bottom_center_barrier_wall",
+        "target_type": "usable_wall",
+        "center_x_cm": 0.0,
+        "center_y_cm": -455.0,
+        "width_cm": 30.0,
+        "height_cm": 130.0
+      }
+    ]
   },
   "display": {
     "ui_fps": 30,
@@ -75,7 +215,25 @@
     "show_pos_trajectory": true,
     "show_calib_trajectory": true,
     "show_lidar_trajectory": true,
-    "show_dt35": true
+    "show_dt35": true,
+    "show_field_model": true,
+    "apply_live_fusion": true,
+    "live_fusion_lidar_stride": 1,
+    "live_fusion_lidar_gain": 1.0,
+    "live_fusion_encoder_scale_learning": true,
+    "live_fusion_encoder_scale_learning_gain": 0.35,
+    "live_fusion_encoder_scale_min_delta_cm": 20.0,
+    "live_fusion_encoder_scale_min": 0.85,
+    "live_fusion_encoder_scale_max": 1.15,
+    "live_fusion_use_dt35": true,
+    "live_fusion_dt35_gain": 1.0,
+    "live_fusion_dt35_yaw_gain": 0.0,
+    "live_fusion_dt35_correct_lidar_frames": true,
+    "live_fusion_dt35_residual_gate_cm": 40.0,
+    "live_fusion_dt35_max_translation_step_cm": 12.0,
+    "live_fusion_dt35_damping": 0.05,
+    "capture_data_interval_s": 0.1,
+    "capture_map_snapshot_interval_s": 1.0
   },
   "protocol": {
     "mode": "auto",
@@ -97,4 +255,3 @@
     }
   ]
 }
-

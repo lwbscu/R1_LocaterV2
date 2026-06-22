@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import threading
 from dataclasses import replace
+from math import cos, radians, sin
 from pathlib import Path
 from time import time
 from typing import Any
@@ -28,14 +30,16 @@ from PySide6.QtWidgets import (
 )
 
 from .config_loader import PROJECT_ROOT
+from .capture_recorder import CaptureRecorder
 from .data_model import RobotFrame, SerialStats
 from .demo_source import DemoSource
+from .fusion_model import FusionConfig, LiveFusionFilter
 from .i18n import normalize_language, tr
 from .logger import SessionLogger
 from .map_widget import FieldMapView
 from .replay import ReplaySource
-from .serial_worker import SerialSession, available_ports
-from .utils_transform import transform_frame
+from .serial_worker import SerialSession, available_ports, preferred_serial_port
+from .utils_transform import dt35_ray, dt35_yaw_from_frame, transform_frame
 
 
 class MainWindow(QMainWindow):
@@ -48,6 +52,7 @@ class MainWindow(QMainWindow):
         baudrate: int | None = None,
         duration_s: float | None = None,
         screenshot_path: str | None = None,
+        capture_on_start: bool = False,
     ) -> None:
         super().__init__()
         self.config = config
@@ -68,10 +73,15 @@ class MainWindow(QMainWindow):
         log_root = PROJECT_ROOT / str(config.get("logging", {}).get("root", "logs"))
         self.logger = SessionLogger(log_root, bool(config.get("logging", {}).get("enabled", True)))
         self.logger.start()
+        self.capture = CaptureRecorder(log_root, config)
 
         self.demo_source = DemoSource()
         self.replay: ReplaySource | None = ReplaySource(replay_path) if replay_path else None
+        self.live_fusion = LiveFusionFilter(self._live_fusion_config(), self.config, use_start_transform=False)
         self.latest_frame: RobotFrame | None = None
+        self._latest_raw_frame: RobotFrame | None = None
+        self._latest_display_frame: RobotFrame | None = None
+        self._screenshot_threads: list[threading.Thread] = []
         self.stats = SerialStats()
         self._last_serial_args: tuple[str, int, dict[str, Any]] | None = None
 
@@ -79,6 +89,7 @@ class MainWindow(QMainWindow):
         self._auto_baudrate = baudrate
         self._auto_duration_s = duration_s
         self._auto_screenshot_path = screenshot_path
+        self._auto_capture = capture_on_start
 
         self._build_ui()
         self._apply_theme()
@@ -91,6 +102,25 @@ class MainWindow(QMainWindow):
 
     def _t(self, key: str) -> str:
         return tr(self.language, key)
+
+    def _live_fusion_config(self) -> FusionConfig:
+        display = self.config.get("display", {})
+        return FusionConfig(
+            lidar_stride=max(1, int(display.get("live_fusion_lidar_stride", 1))),
+            lidar_gain=float(display.get("live_fusion_lidar_gain", 1.0)),
+            encoder_scale_learning=bool(display.get("live_fusion_encoder_scale_learning", True)),
+            encoder_scale_learning_gain=float(display.get("live_fusion_encoder_scale_learning_gain", 0.35)),
+            encoder_scale_min_delta_cm=float(display.get("live_fusion_encoder_scale_min_delta_cm", 20.0)),
+            encoder_scale_min=float(display.get("live_fusion_encoder_scale_min", 0.85)),
+            encoder_scale_max=float(display.get("live_fusion_encoder_scale_max", 1.15)),
+            dt35_gain=float(display.get("live_fusion_dt35_gain", 1.0)),
+            dt35_yaw_gain=float(display.get("live_fusion_dt35_yaw_gain", 0.0)),
+            dt35_correct_lidar_frames=bool(display.get("live_fusion_dt35_correct_lidar_frames", False)),
+            dt35_residual_gate_cm=float(display.get("live_fusion_dt35_residual_gate_cm", 40.0)),
+            dt35_max_translation_step_cm=float(display.get("live_fusion_dt35_max_translation_step_cm", 12.0)),
+            dt35_damping=float(display.get("live_fusion_dt35_damping", 0.05)),
+            use_dt35=bool(display.get("live_fusion_use_dt35", True)),
+        )
 
     def _remember_text(self, key: str, widget: QLabel | QPushButton | QCheckBox | QGroupBox | QToolButton | QTabWidget) -> None:
         self._text_widgets.setdefault(key, []).append(widget)
@@ -126,11 +156,17 @@ class MainWindow(QMainWindow):
             self.open_btn.setText(self._t("close") if self.serial.worker else self._t("open"))
         if hasattr(self, "replay_toggle_btn") and not self.replay_timer.isActive():
             self.replay_toggle_btn.setText(self._t("play"))
+        if hasattr(self, "capture_btn"):
+            self.capture_btn.setText(self._t("capture_stop") if self.capture.active else self._t("capture_start"))
+        if hasattr(self, "capture_status") and not self.capture.active and self.capture_status.text() in ("-", self._t("capture_idle")):
+            self.capture_status.setText(self._t("capture_idle"))
         self._update_labels()
 
     def _schedule_startup_actions(self) -> None:
         if self._auto_serial_port:
             QTimer.singleShot(200, self.open_startup_serial)
+        if self._auto_capture:
+            QTimer.singleShot(700, self.start_capture)
         if self._auto_duration_s is not None:
             delay_ms = max(250, int(self._auto_duration_s * 1000.0))
             QTimer.singleShot(delay_ms, self.finish_timed_run)
@@ -147,6 +183,8 @@ class MainWindow(QMainWindow):
             self.toggle_serial()
 
     def finish_timed_run(self) -> None:
+        if self.capture.active:
+            self.stop_capture()
         if self._auto_screenshot_path:
             out = Path(self._auto_screenshot_path)
             if not out.is_absolute():
@@ -226,8 +264,15 @@ class MainWindow(QMainWindow):
         self.start_policy_combo = QComboBox()
         self.start_policy_combo.addItems(["auto_lidar_offline", "always_local_display", "off"])
         self.start_policy_combo.setCurrentText(str(self.config["robot"].get("start_pose_policy", "auto_lidar_offline")))
+        self.start_side_combo.currentTextChanged.connect(lambda _text: self.live_fusion.reset())
+        self.start_policy_combo.currentTextChanged.connect(lambda _text: self.live_fusion.reset())
         start_form.addRow(self._make_label("side"), self.start_side_combo)
         start_form.addRow(self._make_label("policy"), self.start_policy_combo)
+        self.live_fusion_check = QCheckBox(self._t("live_fusion"))
+        self._remember_text("live_fusion", self.live_fusion_check)
+        self.live_fusion_check.setChecked(bool(self.config.get("display", {}).get("apply_live_fusion", True)))
+        self.live_fusion_check.toggled.connect(lambda _checked: self.live_fusion.reset())
+        start_form.addRow(self.live_fusion_check)
         layout.addWidget(start_box)
 
         mode_box = QGroupBox(self._t("mode_replay"))
@@ -257,6 +302,13 @@ class MainWindow(QMainWindow):
         replay_controls.addWidget(step)
         replay_controls.addWidget(self.replay_speed)
         mode_layout.addLayout(replay_controls)
+        self.capture_btn = QPushButton(self._t("capture_start"))
+        self._remember_text("capture_start", self.capture_btn)
+        self.capture_btn.clicked.connect(self.toggle_capture)
+        self.capture_status = QLabel(self._t("capture_idle"))
+        self.capture_status.setWordWrap(True)
+        mode_layout.addWidget(self.capture_btn)
+        mode_layout.addWidget(self.capture_status)
         layout.addWidget(mode_box)
 
         layers = QGroupBox(self._t("layers"))
@@ -267,6 +319,7 @@ class MainWindow(QMainWindow):
             ("calib", "calib_trajectory"),
             ("lidar", "lidar_trajectory"),
             ("dt35", "dt35_rays"),
+            ("field_model", "field_model"),
             ("grid", "grid"),
             ("axes", "axes"),
         ]:
@@ -310,7 +363,7 @@ class MainWindow(QMainWindow):
         grid = QGridLayout(values)
         names = [
             "pos", "lidar", "encoder", "h30", "dt35", "diag",
-            "fps", "bytes", "dropped", "crc", "parse", "interval", "mouse",
+            "dt35_model", "fps", "bytes", "dropped", "crc", "parse", "interval", "mouse",
         ]
         for row, name in enumerate(names):
             name_label = QLabel(self._t(name))
@@ -414,6 +467,7 @@ class MainWindow(QMainWindow):
             "calib": "show_calib_trajectory",
             "lidar": "show_lidar_trajectory",
             "dt35": "show_dt35",
+            "field_model": "show_field_model",
         }
         return bool(display.get(config_keys.get(key, ""), True))
 
@@ -427,6 +481,9 @@ class MainWindow(QMainWindow):
 
         self.periodic_timer = QTimer(self)
         self.periodic_timer.timeout.connect(self.send_command_text)
+
+        self.capture_timer = QTimer(self)
+        self.capture_timer.timeout.connect(self.capture_map_snapshot)
 
     def _apply_theme(self) -> None:
         self.setStyleSheet(
@@ -446,16 +503,19 @@ class MainWindow(QMainWindow):
         ports = available_ports()
         self.port_combo.addItems(ports)
         default = str(self.config["serial"].get("default_port", ""))
-        if default and default in ports:
-            self.port_combo.setCurrentText(default)
-        elif current and current in ports:
-            self.port_combo.setCurrentText(current)
+        preferred = preferred_serial_port(current=current, default=default)
+        if preferred:
+            self.port_combo.setCurrentText(preferred)
 
     def toggle_serial(self) -> None:
         if self.serial.worker is None:
+            self.refresh_ports()
             port = self.port_combo.currentText()
             if not port:
                 self.on_event("no serial port selected")
+                return
+            if port not in available_ports():
+                self.on_event(f"serial port not present: {port}")
                 return
             protocol_cfg = dict(self.config["protocol"])
             protocol_cfg["mode"] = self.protocol_combo.currentText()
@@ -471,6 +531,15 @@ class MainWindow(QMainWindow):
         if not self.auto_reconnect_check.isChecked() or not self._last_serial_args:
             return
         port, baudrate, protocol_cfg = self._last_serial_args
+        if port not in available_ports():
+            default = str(self.config["serial"].get("default_port", ""))
+            port = preferred_serial_port(default=default)
+            if not port:
+                self.open_btn.setText(self._t("open"))
+                self.on_event("no serial port selected")
+                return
+            self.port_combo.setCurrentText(port)
+            self._last_serial_args = (port, baudrate, protocol_cfg)
         self.serial.close()
         self.serial.open(port, baudrate, protocol_cfg)
         self.open_btn.setText(self._t("close"))
@@ -519,6 +588,58 @@ class MainWindow(QMainWindow):
         out.write_text(self.raw_text.toPlainText(), encoding="utf-8")
         self.on_event(f"visible raw saved: {out}")
 
+    def toggle_capture(self) -> None:
+        if self.capture.active:
+            self.stop_capture()
+        else:
+            self.start_capture()
+
+    def start_capture(self) -> None:
+        out = self.capture.start()
+        self.capture_btn.setText(self._t("capture_stop"))
+        self.capture_status.setText(f"{self._t('capture_recording')}: {out}")
+        interval_s = float(self.config.get("display", {}).get("capture_map_snapshot_interval_s", 1.0))
+        interval_ms = max(250, int(interval_s * 1000.0))
+        self.capture_timer.start(interval_ms)
+        self.capture_map_snapshot()
+        self.on_event(f"capture started: {out}")
+
+    def stop_capture(self) -> None:
+        self.capture_map_snapshot()
+        self.capture_timer.stop()
+        summary = self.capture.stop()
+        self._join_screenshot_saves(timeout_s=2.0)
+        self.capture_btn.setText(self._t("capture_start"))
+        self.capture_status.setText(
+            f"{self._t('capture_saved')}: {summary.session_dir} | "
+            f"frames={summary.display_frame_count} screenshots={summary.screenshot_count}"
+        )
+        self.on_event(
+            f"capture saved: {summary.session_dir} "
+            f"frames={summary.display_frame_count} screenshots={summary.screenshot_count}"
+        )
+
+    def capture_map_snapshot(self) -> None:
+        path = self.capture.screenshot_path()
+        if path is None:
+            return
+        image = self.map_view.grab().toImage()
+        thread = threading.Thread(target=self._save_screenshot_image, args=(image, path), daemon=True)
+        thread.start()
+        self._screenshot_threads.append(thread)
+
+    @staticmethod
+    def _save_screenshot_image(image, path: Path) -> None:  # type: ignore[no-untyped-def]
+        image.save(str(path))
+
+    def _join_screenshot_saves(self, timeout_s: float | None = None) -> None:
+        alive: list[threading.Thread] = []
+        for thread in self._screenshot_threads:
+            thread.join(timeout=timeout_s)
+            if thread.is_alive():
+                alive.append(thread)
+        self._screenshot_threads = alive
+
     def send_command_text(self) -> None:
         self.serial.send_text(self.cmd_text.text() + "\n")
 
@@ -531,13 +652,23 @@ class MainWindow(QMainWindow):
     def on_ui_tick(self) -> None:
         if self.demo_check.isChecked():
             self.on_frame(self.demo_source.next_frame())
+        if self.capture.active and hasattr(self, "capture_status"):
+            self.capture_status.setText(
+                f"{self._t('capture_recording')}: "
+                f"frames={self.capture.display_frame_count} screenshots={self.capture.screenshot_count}"
+            )
         self._update_labels()
 
     def on_frame(self, frame: RobotFrame) -> None:
         self.logger.frame(frame)
-        display_frame = transform_frame(frame, self.config.get("transform", {}))
-        display_frame = self._apply_start_pose(display_frame)
+        local_frame = transform_frame(frame, self.config.get("transform", {}))
+        display_frame = self._apply_start_pose(local_frame)
+        if getattr(self, "live_fusion_check", None) is not None and self.live_fusion_check.isChecked():
+            display_frame = self.live_fusion.process(display_frame)
         self.latest_frame = display_frame
+        self._latest_raw_frame = frame
+        self._latest_display_frame = display_frame
+        self.capture.update_frame_pair(frame, display_frame)
         self.map_view.update_frame(display_frame)
 
     def _apply_start_pose(self, frame: RobotFrame) -> RobotFrame:
@@ -552,23 +683,42 @@ class MainWindow(QMainWindow):
         ox = float(pose.get("x_cm", 0.0))
         oy = float(pose.get("y_cm", 0.0))
         oyaw = float(pose.get("yaw_deg", 0.0))
+        start_yaw = radians(oyaw)
+        start_sin = sin(start_yaw)
+        start_cos = cos(start_yaw)
+
+        def apply_pose(x_cm: float, y_cm: float, yaw_deg: float) -> tuple[float, float, float]:
+            return (
+                ox + x_cm * start_cos - y_cm * start_sin,
+                oy + x_cm * start_sin + y_cm * start_cos,
+                yaw_deg + oyaw,
+            )
+
+        pos_x, pos_y, pos_yaw = apply_pose(frame.pos_x_cm, frame.pos_y_cm, frame.pos_yaw_deg)
+        calib_x, calib_y, calib_yaw = apply_pose(frame.calib_x_cm, frame.calib_y_cm, frame.calib_yaw_deg)
+        h30_x, h30_y, h30_yaw = apply_pose(frame.h30_x_cm, frame.h30_y_cm, frame.h30_yaw_deg)
+        lidar_x, lidar_y, lidar_yaw = apply_pose(frame.lidar_x_cm, frame.lidar_y_cm, frame.lidar_yaw_deg)
         return replace(
             frame,
-            pos_x_cm=frame.pos_x_cm + ox,
-            pos_y_cm=frame.pos_y_cm + oy,
-            pos_yaw_deg=frame.pos_yaw_deg + oyaw,
-            calib_x_cm=frame.calib_x_cm + ox,
-            calib_y_cm=frame.calib_y_cm + oy,
-            calib_yaw_deg=frame.calib_yaw_deg + oyaw,
-            h30_x_cm=frame.h30_x_cm + ox,
-            h30_y_cm=frame.h30_y_cm + oy,
-            h30_yaw_deg=frame.h30_yaw_deg + oyaw,
-            encoder_x_cm=frame.encoder_x_cm + ox,
-            encoder_y_cm=frame.encoder_y_cm + oy,
+            pos_x_cm=pos_x,
+            pos_y_cm=pos_y,
+            pos_yaw_deg=pos_yaw,
+            calib_x_cm=calib_x,
+            calib_y_cm=calib_y,
+            calib_yaw_deg=calib_yaw,
+            h30_x_cm=h30_x,
+            h30_y_cm=h30_y,
+            h30_yaw_deg=h30_yaw,
+            lidar_x_cm=lidar_x,
+            lidar_y_cm=lidar_y,
+            lidar_yaw_deg=lidar_yaw,
+            encoder_x_cm=calib_x,
+            encoder_y_cm=calib_y,
         )
 
     def on_raw(self, line: str) -> None:
         self.logger.raw(line)
+        self.capture.raw_line(line)
         self.raw_summary.setText(line[:240])
         if self.raw_pause_check.isChecked():
             return
@@ -583,8 +733,11 @@ class MainWindow(QMainWindow):
         self.logger.event(text)
         if hasattr(self, "raw_text"):
             self.raw_text.appendPlainText(f"[event] {text}")
-        if text.startswith("serial error") and self.auto_reconnect_check.isChecked():
-            QTimer.singleShot(1000, self._auto_reconnect)
+        if text.startswith("serial error"):
+            self.open_btn.setText(self._t("open"))
+            self.refresh_ports()
+            if self.auto_reconnect_check.isChecked():
+                QTimer.singleShot(1000, self._auto_reconnect)
 
     def on_mouse_position(self, x_cm: float, y_cm: float) -> None:
         self.value_labels["mouse"].setText(f"{x_cm:.1f}, {y_cm:.1f} cm")
@@ -607,8 +760,73 @@ class MainWindow(QMainWindow):
             state = self._t("sensor_pulse_received") if ok else self._t("sensor_pulse_missing")
         else:
             state = self._t("sensor_received") if ok else self._t("sensor_missing")
-        label.setText(f"{self._t('sensor_' + key)}：{state}")
+        label.setText(f"{self._t('sensor_' + key)}: {state}")
         label.setStyleSheet("color:#37d67a" if ok else "color:#ff6b6b")
+
+    def _dt35_model_text(self, frame: RobotFrame) -> str:
+        field_model = dict(self.config.get("field_model", {}))
+        field_model.setdefault("field_width_cm", self.config.get("map", {}).get("field_width_cm", 1215.0))
+        field_model.setdefault("field_height_cm", self.config.get("map", {}).get("field_height_cm", 1210.0))
+        residual_gate = float(self.config.get("display", {}).get("live_fusion_dt35_residual_gate_cm", 40.0))
+        yaw_for_dt35 = dt35_yaw_from_frame(frame)
+        parts: list[str] = []
+        for label, key, distance in (
+            ("1", "sensor_1", frame.dt35_1_mm),
+            ("2", "sensor_2", frame.dt35_2_mm),
+        ):
+            sensor_cfg = self.config.get("dt35", {}).get(key, {})
+            ray = dt35_ray(frame.pos_x_cm, frame.pos_y_cm, yaw_for_dt35, sensor_cfg, distance, field_model)
+            target = str(ray.get("expected_target", "")) or "-"
+            target_type = str(ray.get("expected_target_type", ""))
+            state = self._dt35_model_state(ray, residual_gate)
+            expected = float(ray.get("expected_distance_cm", float("nan")))
+            measured = float(ray.get("distance_cm", float("nan")))
+            residual = float(ray.get("residual_cm", float("nan")))
+            target_text = self._dt35_target_type_text(target_type)
+            if bool(ray.get("valid", False)) and expected == expected and residual == residual:
+                parts.append(
+                    f"DT35-{label}: {target_text} {target} "
+                    f"实测{measured:.1f}/预期{expected:.1f}cm 残差{residual:+.1f}cm {state}"
+                )
+            elif expected == expected:
+                parts.append(f"DT35-{label}: {target_text} {target} 预期{expected:.1f}cm {state}")
+            else:
+                parts.append(f"DT35-{label}: {target_text} {target} {state}")
+        return " | ".join(parts)
+
+    def _dt35_model_state(self, ray: dict[str, object], residual_gate_cm: float) -> str:
+        if bool(ray.get("valid", False)) and bool(ray.get("correction_allowed", False)):
+            residual = float(ray.get("residual_cm", float("nan")))
+            if residual == residual and abs(residual) > residual_gate_cm:
+                return "残差过大/不用"
+            return "可融合"
+        return self._dt35_skip_reason(ray)
+
+    def _dt35_target_type_text(self, target_type: str) -> str:
+        if target_type == "usable_wall":
+            return "墙"
+        if target_type == "solid_obstacle":
+            return "障碍"
+        if target_type == "ignore":
+            return "忽略区"
+        if target_type == "blocker":
+            return "阻挡"
+        return "未知"
+
+    def _dt35_skip_reason(self, ray: dict[str, object]) -> str:
+        if bool(ray.get("correction_allowed", False)):
+            return "可融合"
+        if bool(ray.get("corner_ambiguous", False)):
+            return "角点/不用"
+        if str(ray.get("expected_target_type", "")) == "ignore":
+            return "干扰区/不用"
+        expected = float(ray.get("expected_distance_cm", float("nan")))
+        max_range = float(ray.get("max_range_cm", float("nan")))
+        if expected != expected:
+            return "无命中"
+        if max_range == max_range and expected > max_range:
+            return "超量程/不用"
+        return "不用"
 
     def _update_labels(self) -> None:
         f = self.latest_frame
@@ -621,6 +839,7 @@ class MainWindow(QMainWindow):
             dt35_1 = f"{f.dt35_1_mm:.0f} mm" if f.dt35_1_valid else self._t("dt35_invalid")
             dt35_2 = f"{f.dt35_2_mm:.0f} mm" if f.dt35_2_valid else self._t("dt35_invalid")
             self.value_labels["dt35"].setText(f"{dt35_1} / {dt35_2}")
+            self.value_labels["dt35_model"].setText(self._dt35_model_text(f))
             self._set_sensor_status("encoder_1", f.x_pulse_seen or bool(f.status & (1 << 10)))
             self._set_sensor_status("encoder_2", f.y_pulse_seen or bool(f.status & (1 << 11)))
             self._set_sensor_status("h30", f.h30_valid)
@@ -637,6 +856,10 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event) -> None:  # type: ignore[no-untyped-def]
         self.periodic_timer.stop()
         self.replay_timer.stop()
+        self.capture_timer.stop()
+        if self.capture.active:
+            self.capture.stop()
+        self._join_screenshot_saves(timeout_s=2.0)
         self.serial.close()
         self.logger.stop()
         super().closeEvent(event)

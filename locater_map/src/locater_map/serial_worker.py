@@ -16,10 +16,36 @@ from .data_model import RobotFrame, SerialStats
 from .protocol import parse_line
 
 
-def available_ports() -> list[str]:
+def available_port_infos() -> list[Any]:
     if list_ports is None:
         return []
-    return [p.device for p in list_ports.comports()]
+    return list(list_ports.comports())
+
+
+def available_ports() -> list[str]:
+    return [p.device for p in available_port_infos()]
+
+
+def preferred_serial_port(current: str = "", default: str = "") -> str:
+    infos = available_port_infos()
+    ports = [p.device for p in infos]
+    if current and current in ports:
+        return current
+    if default and default in ports:
+        return default
+
+    for info in infos:
+        hwid = str(getattr(info, "hwid", "")).upper()
+        desc = str(getattr(info, "description", "")).upper()
+        if "VID:PID=04D8:00DF" in hwid or "USB 串行设备" in desc or "USB SERIAL" in desc:
+            return str(info.device)
+
+    for info in infos:
+        desc = str(getattr(info, "description", "")).upper()
+        if "BLUETOOTH" not in desc and "蓝牙" not in desc:
+            return str(info.device)
+
+    return ports[0] if ports else ""
 
 
 class SerialWorker(QObject):
@@ -156,6 +182,7 @@ class SerialSession(QObject):
         self.worker.raw_received.connect(self.raw_received)
         self.worker.stats_changed.connect(self.stats_changed)
         self.worker.event.connect(self.event)
+        self.thread.finished.connect(self._on_thread_finished)
         self.thread.start()
 
     def close(self) -> None:
@@ -164,6 +191,11 @@ class SerialSession(QObject):
         if self.thread:
             self.thread.quit()
             self.thread.wait(1000)
+        self.thread = None
+        self.worker = None
+
+    @Slot()
+    def _on_thread_finished(self) -> None:
         self.thread = None
         self.worker = None
 
