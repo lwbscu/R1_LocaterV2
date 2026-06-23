@@ -106,7 +106,7 @@ checksum
 安装与运行：
 
 ```powershell
-cd D:\STM32CubeMx\Project_File\STM32_Project\locater_lwb\R1_LocaterV2\locater_map
+cd R1_LocaterV2\locater_map
 python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt

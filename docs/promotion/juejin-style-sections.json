@@ -1,0 +1,38 @@
+[
+  {
+    "number": "01",
+    "slug": "coordinate",
+    "title": "坐标先统一",
+    "subtitle": "R1_LOCATER / COORDINATE"
+  },
+  {
+    "number": "02",
+    "slug": "fusion",
+    "title": "多传感器闭环",
+    "subtitle": "R1_LOCATER / SENSOR FUSION"
+  },
+  {
+    "number": "03",
+    "slug": "replay",
+    "title": "上位机回放",
+    "subtitle": "R1_LOCATER / DESKTOP REPLAY"
+  },
+  {
+    "number": "04",
+    "slug": "raycast",
+    "title": "DT35 墙体模型",
+    "subtitle": "R1_LOCATER / DT35 RAYCAST"
+  },
+  {
+    "number": "05",
+    "slug": "real2sim",
+    "title": "real2sim 迭代",
+    "subtitle": "R1_LOCATER / REAL2SIM"
+  },
+  {
+    "number": "06",
+    "slug": "links",
+    "title": "代码与视频",
+    "subtitle": "R1_LOCATER / LINKS"
+  }
+]
