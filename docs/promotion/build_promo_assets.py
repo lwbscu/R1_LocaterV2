@@ -50,6 +50,7 @@ F_H2 = font(42, True)
 F_BODY = font(28)
 F_BODY_BOLD = font(28, True)
 F_SMALL = font(22)
+F_POSTER_TITLE = font(64, True)
 
 
 def round_rect(draw: ImageDraw.ImageDraw, xy: tuple[int, int, int, int], radius: int, fill, outline=None, width=1) -> None:
@@ -76,6 +77,35 @@ def paste_fit(canvas: Image.Image, img_path: Path, xy: tuple[int, int, int, int]
     px = x1 + (x2 - x1 - fitted.width) // 2
     py = y1 + (y2 - y1 - fitted.height) // 2
     canvas.paste(fitted, (px, py))
+
+
+def make_start_map_composite() -> Path:
+    out = PROMO_DIR / "r1-locaterv2-start-map.png"
+    field_path = ASSETS_DIR / "field_prior_map_clean_labeled_1215x1210cm.png"
+    chassis_path = ASSETS_DIR / "r1_chassis_830mm_texture_1024.png"
+    field = Image.open(field_path).convert("RGBA")
+    if chassis_path.exists():
+        chassis = Image.open(chassis_path).convert("RGBA")
+        # Field assets are 2 px/cm. R1 chassis is 83 cm x 83 cm.
+        chassis = fit_image(chassis, (166, 166), cover=False).convert("RGBA")
+        # Red start area is at the upper-left field corner; place the robot center
+        # in that start square instead of reusing a live screenshot with off-map pose.
+        start_center_px = (108, 108)
+        field.alpha_composite(chassis, (start_center_px[0] - chassis.width // 2, start_center_px[1] - chassis.height // 2))
+        draw = ImageDraw.Draw(field)
+        draw.ellipse(
+            (
+                start_center_px[0] - 8,
+                start_center_px[1] - 8,
+                start_center_px[0] + 8,
+                start_center_px[1] + 8,
+            ),
+            outline=(39, 220, 255, 255),
+            width=4,
+        )
+    out.parent.mkdir(parents=True, exist_ok=True)
+    field.convert("RGB").save(out, quality=95)
+    return out
 
 
 def draw_wrapped(draw: ImageDraw.ImageDraw, text: str, xy: tuple[int, int], max_width: int, line_gap: int = 8, fnt=F_BODY, fill=TEXT) -> int:
@@ -115,46 +145,77 @@ def base_canvas() -> tuple[Image.Image, ImageDraw.ImageDraw]:
 
 def make_poster() -> Path:
     out = PROMO_DIR / "r1-locaterv2-poster.png"
-    ui = PROMO_DIR / "r1-locaterv2-ui-demo.png"
     field = ASSETS_DIR / "field_prior_map_clean_labeled_1215x1210cm.png"
-    chassis = ASSETS_DIR / "r1_chassis_830mm_texture_1024.png"
+    start_map = make_start_map_composite() if field.exists() else None
+    real_frame = PROMO_DIR / "r1-locaterv2-real-car-frame.png"
+    ui = PROMO_DIR / "r1-locaterv2-ui-demo.png"
     overlay = ROOT / "locater_map" / "logs" / "RL_data" / "20260623_coord_fixed_four_stages" / "ideal_log" / "png" / "overview.png"
 
-    canvas, draw = base_canvas()
-    round_rect(draw, (60, 70, 1210, 1010), 26, PANEL, outline=(45, 66, 91), width=2)
-    if ui.exists():
-        paste_fit(canvas, ui, (90, 105, 1180, 980), cover=True)
-    elif field.exists():
-        paste_fit(canvas, field, (110, 130, 1160, 960), cover=False)
+    def paste_media(img_path: Path, box: tuple[int, int, int, int], cover: bool = True, crop: tuple[int, int, int, int] | None = None) -> None:
+        if not img_path.exists():
+            return
+        img = Image.open(img_path).convert("RGB")
+        if crop is not None:
+            img = img.crop(crop)
+        x1, y1, x2, y2 = box
+        fitted = fit_image(img, (x2 - x1, y2 - y1), cover=cover)
+        px = x1 + (x2 - x1 - fitted.width) // 2
+        py = y1 + (y2 - y1 - fitted.height) // 2
+        canvas.paste(fitted, (px, py))
 
-    round_rect(draw, (1260, 70, 1860, 1010), 26, PANEL_2, outline=(45, 66, 91), width=2)
-    draw.text((1310, 120), "R1_LocaterV2", font=F_TITLE, fill=TEXT)
-    draw.text((1314, 208), "STM32G4 多传感器定位板", font=F_SUBTITLE, fill=CYAN)
+    def draw_panel(box: tuple[int, int, int, int], title: str, accent=CYAN) -> tuple[int, int, int, int]:
+        x1, y1, x2, y2 = box
+        round_rect(draw, box, 22, PANEL, outline=(45, 66, 91), width=2)
+        draw.rectangle((x1 + 18, y1 + 18, x1 + 88, y1 + 24), fill=accent)
+        draw.text((x1 + 18, y2 - 46), title, font=F_SMALL, fill=TEXT)
+        return (x1 + 18, y1 + 34, x2 - 18, y2 - 62)
+
+    canvas, draw = base_canvas()
+    top_cards = [(75, 55, 575, 330), (710, 55, 1210, 330), (1345, 55, 1845, 330)]
+    start_box = draw_panel(top_cards[0], "红方启动区局部零点", GREEN)
+    real_box = draw_panel(top_cards[1], "实车链路", YELLOW)
+    model_box = draw_panel(top_cards[2], "DT35 墙体模型", CYAN)
+    if start_map and start_map.exists():
+        paste_media(start_map, start_box, cover=True, crop=(0, 0, 520, 370))
+    elif field.exists():
+        paste_media(field, start_box, cover=True, crop=(0, 0, 520, 370))
+    paste_media(real_frame, real_box, cover=True)
+    if overlay.exists():
+        paste_media(overlay, model_box, cover=True, crop=(0, 120, 2500, 1060))
+    elif ui.exists():
+        paste_media(ui, model_box, cover=True)
+
+    round_rect(draw, (75, 380, 1845, 1010), 28, PANEL_2, outline=(45, 66, 91), width=2)
+    draw.text((130, 445), "R1_LocaterV2", font=F_TITLE, fill=TEXT)
+    draw.text((134, 532), "STM32G4 多传感器定位板", font=F_SUBTITLE, fill=CYAN)
     draw_wrapped(
         draw,
-        "H30 yaw、双正交编码轮、Lidar 绝对位姿、双 DT35 测距与 PySide6 实时地图上位机对齐到同一套定位调试闭环。",
-        (1314, 275),
-        500,
+        "H30 yaw、双正交编码轮、Lidar 启动局部位姿、双 DT35 测距与 PySide6 实时地图上位机对齐到同一套定位调试闭环。",
+        (134, 598),
+        650,
         fnt=F_BODY,
         fill=TEXT,
     )
-    draw_badge(draw, (1314, 415), "real2sim", GREEN)
-    draw_badge(draw, (1454, 415), "UART/VOFA", CYAN)
-    draw_badge(draw, (1618, 415), "DT35 raycast", YELLOW)
-    y = 505
+    draw_badge(draw, (134, 720), "real2sim", GREEN)
+    draw_badge(draw, (274, 720), "UART/VOFA", CYAN)
+    draw_badge(draw, (438, 720), "DT35 raycast", YELLOW)
+    y = 800
     bullets = [
         "CSV/二进制协议同时服务上位机与底盘主控",
         "地图坐标、底盘贴图、DT35 墙体模型按 cm 精确建模",
         "支持日志采集、回放、截图序列和离线融合评估",
     ]
     for item in bullets:
-        draw.ellipse((1320, y + 8, 1332, y + 20), fill=GREEN)
-        y = draw_wrapped(draw, item, (1350, y), 470, fnt=F_BODY, fill=TEXT) + 6
-    draw.text((1320, 720), "实车链路 + 地图模型", font=F_BODY_BOLD, fill=YELLOW)
-    if chassis.exists():
-        paste_fit(canvas, chassis, (1320, 780, 1535, 980), cover=False)
-    if overlay.exists():
-        paste_fit(canvas, overlay, (1580, 780, 1820, 980), cover=False)
+        draw.ellipse((142, y + 8, 154, y + 20), fill=GREEN)
+        y = draw_wrapped(draw, item, (174, y), 660, fnt=F_BODY, fill=TEXT) + 6
+
+    media_frame = (900, 430, 1790, 950)
+    round_rect(draw, media_frame, 22, (8, 13, 20), outline=(55, 80, 110), width=1)
+    if start_map and start_map.exists():
+        paste_media(start_map, (925, 455, 1765, 925), cover=False)
+    elif field.exists():
+        paste_media(field, (925, 455, 1765, 925), cover=False)
+    draw.text((925, 900), "起点 x=0, y=0, yaw=0 / +X 正东 / +Y 正北", font=F_SMALL, fill=YELLOW)
     out.parent.mkdir(parents=True, exist_ok=True)
     canvas.save(out, quality=95)
     return out
@@ -216,6 +277,8 @@ def encode_still(image: Path, duration: float, out: Path) -> None:
             "medium",
             "-crf",
             "20",
+            "-movflags",
+            "+faststart",
             str(out),
         ]
     )
@@ -242,6 +305,8 @@ def encode_real_clip(src: Path, out: Path) -> None:
             "medium",
             "-crf",
             "21",
+            "-movflags",
+            "+faststart",
             str(out),
         ]
     )
@@ -279,6 +344,8 @@ def encode_sim_clip(out: Path) -> Path | None:
             "medium",
             "-crf",
             "20",
+            "-movflags",
+            "+faststart",
             str(out),
         ]
     )
@@ -309,6 +376,8 @@ def convert_real_video() -> tuple[Path, Path]:
             "aac",
             "-b:a",
             "128k",
+            "-movflags",
+            "+faststart",
             str(h264),
         ]
     )
@@ -318,8 +387,8 @@ def convert_real_video() -> tuple[Path, Path]:
 
 def make_demo_video() -> tuple[Path, Path]:
     TMP_DIR.mkdir(parents=True, exist_ok=True)
-    poster = make_poster()
     h264, real_frame = convert_real_video()
+    poster = make_poster()
     field_model_overview = ROOT / "locater_map" / "logs" / "RL_data" / "20260623_coord_fixed_four_stages" / "ideal_log" / "png" / "overview.png"
     if field_model_overview.exists():
         shutil.copy2(field_model_overview, PROMO_DIR / "r1-locaterv2-field-model-overview.png")
@@ -376,7 +445,7 @@ def make_demo_video() -> tuple[Path, Path]:
     concat_file = TMP_DIR / "concat.txt"
     concat_file.write_text("".join(f"file '{p.as_posix()}'\n" for p in segments), encoding="utf-8")
     demo = PROMO_DIR / "r1-locaterv2-demo.mp4"
-    run(["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(concat_file), "-c", "copy", str(demo)])
+    run(["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(concat_file), "-c", "copy", "-movflags", "+faststart", str(demo)])
 
     gif = PROMO_DIR / "r1-locaterv2-demo-teaser.gif"
     run(
@@ -384,9 +453,9 @@ def make_demo_video() -> tuple[Path, Path]:
             "ffmpeg",
             "-y",
             "-ss",
-            "00:00:05",
+            "00:00:00",
             "-t",
-            "00:00:10",
+            "00:00:12",
             "-i",
             str(demo),
             "-vf",

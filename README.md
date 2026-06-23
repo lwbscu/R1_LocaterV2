@@ -8,7 +8,18 @@ R1_LocaterV2 是基于 STM32G4 的 R1 机器人定位板工程。它把 H30 MINI
   </a>
 </p>
 
-> 演示视频：[`docs/promotion/r1-locaterv2-demo.mp4`](docs/promotion/r1-locaterv2-demo.mp4)  
+<p align="center">
+  <video controls muted playsinline width="920" poster="docs/promotion/r1-locaterv2-poster.png">
+    <source src="https://raw.githubusercontent.com/lwbscu/R1_LocaterV2/main/docs/promotion/r1-locaterv2-demo.mp4" type="video/mp4">
+  </video>
+</p>
+
+<p align="center">
+  <img src="docs/promotion/r1-locaterv2-demo-teaser.gif" alt="R1_LocaterV2 demo GIF preview" width="920">
+</p>
+
+> 宣传页：[`docs/promotion/index.html`](docs/promotion/index.html)  
+> 演示视频 MP4：[`docs/promotion/r1-locaterv2-demo.mp4`](docs/promotion/r1-locaterv2-demo.mp4)  
 > GIF 预览：[`docs/promotion/r1-locaterv2-demo-teaser.gif`](docs/promotion/r1-locaterv2-demo-teaser.gif)  
 > 实车原始视频：[`locater_map/assets/实车.mp4`](locater_map/assets/实车.mp4)
 
@@ -143,6 +154,7 @@ docs/promotion/          README 封面、演示视频、平台文章草稿、剪
 
 - GitHub 封面：[`docs/promotion/r1-locaterv2-poster.png`](docs/promotion/r1-locaterv2-poster.png)
 - 演示视频：[`docs/promotion/r1-locaterv2-demo.mp4`](docs/promotion/r1-locaterv2-demo.mp4)
+- 独立宣传页：[`docs/promotion/index.html`](docs/promotion/index.html)
 - 剪映草稿脚本：[`docs/promotion/jianying/create_r1_locaterv2_promo.py`](docs/promotion/jianying/create_r1_locaterv2_promo.py)
 - 掘金草稿：[`docs/promotion/juejin-draft.md`](docs/promotion/juejin-draft.md)
 - 知乎草稿：[`docs/promotion/zhihu-draft.md`](docs/promotion/zhihu-draft.md)
