@@ -3,13 +3,13 @@
 R1_LocaterV2 是基于 STM32G4 的 R1 机器人定位板工程。它把 H30 MINI 惯导、双正交编码轮、Lidar 位姿、双 DT35 测距和 Windows 上位机调试工具统一到一套定位闭环中，用于比赛场地中的实时定位、传感器排障、数据采集和 real2sim 算法迭代。
 
 <p align="center">
-  <a href="https://lwbscu.github.io/R1_LocaterV2/">
+  <a href="https://raw.githack.com/lwbscu/R1_LocaterV2/main/docs/promotion/index.html">
     <img src="docs/promotion/r1-locaterv2-poster.png" alt="R1_LocaterV2 demo poster" width="1100">
   </a>
 </p>
 
-> - 宣传页（直接打开）：[`https://lwbscu.github.io/R1_LocaterV2/`](https://lwbscu.github.io/R1_LocaterV2/)
-> - 备用预览：[`raw.githack 静态页`](https://raw.githack.com/lwbscu/R1_LocaterV2/main/docs/promotion/index.html)
+> - 宣传页（直接打开）：[`raw.githack 静态页`](https://raw.githack.com/lwbscu/R1_LocaterV2/main/docs/promotion/index.html)
+> - GitHub Pages（工作流启用后）：[`https://lwbscu.github.io/R1_LocaterV2/`](https://lwbscu.github.io/R1_LocaterV2/)
 > - 页面源码：[`docs/promotion/index.html`](docs/promotion/index.html)
 > - 视频下载：[`完整演示 MP4`](docs/promotion/r1-locaterv2-demo.mp4) / [`A. 实车视频`](docs/promotion/r1-locaterv2-real-car-h264.mp4) / [`B. 仿真训练视频`](docs/promotion/r1-locaterv2-sim-preview.mp4)
 > - GIF 预览：[`docs/promotion/r1-locaterv2-demo-teaser.gif`](docs/promotion/r1-locaterv2-demo-teaser.gif)
