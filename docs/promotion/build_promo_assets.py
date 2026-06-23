@@ -13,6 +13,9 @@ ROOT = Path(__file__).resolve().parents[2]
 PROMO_DIR = ROOT / "docs" / "promotion"
 TMP_DIR = ROOT / ".skill-evals" / "product-promotion-run" / "media"
 ASSETS_DIR = ROOT / "locater_map" / "assets"
+DOCS_DIR = ROOT / "docs"
+PANGOLIN_LOGO = DOCS_DIR / "Pangolin.png"
+R1_IP_IMAGE = DOCS_DIR / "R1.png"
 SIM_LOG_DIR = ROOT / "locater_map" / "logs" / "RL_data" / "20260623_coord_fixed_four_stages" / "ideal_log" / "png"
 
 W, H = 1920, 1080
@@ -72,12 +75,12 @@ def fit_image(img: Image.Image, box: tuple[int, int], cover: bool = False) -> Im
 
 
 def paste_fit(canvas: Image.Image, img_path: Path, xy: tuple[int, int, int, int], cover: bool = False) -> None:
-    img = Image.open(img_path).convert("RGB")
+    img = Image.open(img_path).convert("RGBA")
     x1, y1, x2, y2 = xy
     fitted = fit_image(img, (x2 - x1, y2 - y1), cover=cover)
     px = x1 + (x2 - x1 - fitted.width) // 2
     py = y1 + (y2 - y1 - fitted.height) // 2
-    canvas.paste(fitted, (px, py))
+    canvas.paste(fitted.convert("RGB"), (px, py), fitted)
 
 
 def make_start_map_composite() -> Path:
@@ -184,6 +187,20 @@ def make_poster() -> Path:
     for item in bullets:
         draw.ellipse((145, y + 8, 157, y + 20), fill=GREEN)
         y = draw_wrapped(draw, item, (177, y), 660, fnt=F_BODY, fill=TEXT) + 8
+
+    draw.text((135, 855), "品牌识别", font=F_BODY_BOLD, fill=TEXT)
+    draw.text((265, 861), "Brand Identity", font=F_SMALL, fill=MUTED)
+    brand_cards = [
+        ((135, 915, 382, 1210), PANGOLIN_LOGO, "Pangolin 团队标志"),
+        ((430, 915, 677, 1210), R1_IP_IMAGE, "R1 IP 形象"),
+    ]
+    for box, img_path, label in brand_cards:
+        x1, y1, x2, y2 = box
+        round_rect(draw, box, 22, (12, 18, 27), outline=(54, 79, 108), width=2)
+        image_box = (x1 + 24, y1 + 24, x2 - 24, y2 - 72)
+        if img_path.exists():
+            paste_fit(canvas, img_path, image_box, cover=False)
+        draw.text((x1 + 24, y2 - 48), label, font=F_SMALL, fill=TEXT)
 
     media_frame = (880, 145, 1788, 1295)
     round_rect(draw, media_frame, 22, (8, 13, 20), outline=(55, 80, 110), width=1)
