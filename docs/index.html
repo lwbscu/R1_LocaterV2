@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="R1_LocaterV2 是基于 STM32G4 的 R1 机器人多传感器定位板，融合 Lidar、H30 yaw、双正交编码轮里程计和双 DT35 测距，并配套 PySide6 实时地图上位机。">
+  <title>R1_LocaterV2 | STM32G4 多传感器定位板</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #05070a;
+      --panel: #0f1b2a;
+      --panel2: #142235;
+      --line: #28435f;
+      --text: #edf5ff;
+      --muted: #9eb0c5;
+      --cyan: #27dcff;
+      --green: #2be28d;
+      --yellow: #ffc240;
+      --red: #ff5260;
+      --max: 1180px;
+    }
+
+    * { box-sizing: border-box; }
+    html { background: var(--bg); scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 78% 8%, rgba(39, 220, 255, 0.16), transparent 30%),
+        radial-gradient(circle at 18% 20%, rgba(43, 226, 141, 0.1), transparent 28%),
+        linear-gradient(180deg, #05070a 0%, #07101b 58%, #05070a 100%);
+      font: 16px/1.65 "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0.32;
+      background:
+        linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+      background-size: 70px 70px;
+      mask-image: linear-gradient(180deg, black, transparent 90%);
+    }
+
+    a { color: inherit; text-decoration: none; }
+
+    .nav {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      border-bottom: 1px solid rgba(238, 245, 255, 0.08);
+      background: rgba(5, 7, 10, 0.78);
+      backdrop-filter: blur(18px);
+    }
+
+    .nav-inner {
+      max-width: var(--max);
+      margin: 0 auto;
+      padding: 14px 22px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+    }
+
+    .brand { font-weight: 900; letter-spacing: 0.04em; }
+    .nav-links { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+    .nav-links a {
+      padding: 7px 10px;
+      border-radius: 7px;
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+    .nav-links a:hover { color: var(--text); background: rgba(255,255,255,0.06); }
+
+    .hero {
+      position: relative;
+      max-width: var(--max);
+      min-height: 82vh;
+      margin: 0 auto;
+      padding: 72px 22px 42px;
+      display: grid;
+      grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+      gap: 34px;
+      align-items: center;
+    }
+
+    .eyebrow {
+      color: var(--green);
+      font: 900 0.8rem/1 Consolas, ui-monospace, monospace;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      margin-bottom: 18px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(3rem, 7vw, 6.2rem);
+      line-height: 0.9;
+      letter-spacing: -0.035em;
+    }
+
+    .tagline {
+      margin: 22px 0 0;
+      color: #c8d4e1;
+      font-size: clamp(1.05rem, 2vw, 1.25rem);
+    }
+
+    .actions, .badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 26px;
+    }
+
+    .btn, .badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+      min-height: 42px;
+      padding: 9px 14px;
+      border: 1px solid rgba(238,245,255,0.14);
+      background: rgba(16, 24, 33, 0.72);
+      font-weight: 800;
+    }
+
+    .btn.primary {
+      color: #041018;
+      background: linear-gradient(90deg, var(--green), var(--cyan));
+      border-color: transparent;
+    }
+
+    .badge {
+      min-height: 32px;
+      border-radius: 999px;
+      color: #061018;
+      border: 0;
+      font-size: 0.9rem;
+    }
+    .badge.green { background: var(--green); }
+    .badge.cyan { background: var(--cyan); }
+    .badge.yellow { background: var(--yellow); }
+
+    .hero-card {
+      overflow: hidden;
+      border: 1px solid rgba(238,245,255,0.12);
+      border-radius: 16px;
+      background: rgba(8, 13, 20, 0.75);
+      box-shadow: 0 32px 110px rgba(0,0,0,0.46);
+    }
+    .hero-card img { display: block; width: 100%; height: auto; }
+
+    section {
+      position: relative;
+      max-width: var(--max);
+      margin: 0 auto;
+      padding: 42px 22px;
+    }
+
+    .section-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: end;
+      gap: 18px;
+      margin-bottom: 18px;
+    }
+
+    h2 {
+      margin: 0;
+      font-size: clamp(2rem, 4vw, 3.2rem);
+      line-height: 1;
+      letter-spacing: -0.02em;
+    }
+
+    .muted { color: var(--muted); }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .card {
+      border: 1px solid rgba(238,245,255,0.1);
+      border-radius: 14px;
+      background: rgba(16,24,33,0.62);
+      padding: 18px;
+    }
+    .card h3 { margin: 0 0 10px; color: var(--cyan); font-size: 1.2rem; }
+    .card p { margin: 0; color: #cbd7e4; }
+
+    .media-panel {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 0.78fr);
+      gap: 18px;
+      align-items: stretch;
+    }
+    .media-panel img {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-radius: 14px;
+      border: 1px solid rgba(238,245,255,0.1);
+      background: #050b12;
+    }
+
+    .footer {
+      color: var(--muted);
+      border-top: 1px solid rgba(238,245,255,0.08);
+      margin-top: 28px;
+      padding-top: 28px;
+      font-size: 0.94rem;
+    }
+
+    @media (max-width: 900px) {
+      .hero, .media-panel { grid-template-columns: 1fr; }
+      .grid { grid-template-columns: 1fr; }
+      .hero { min-height: auto; padding-top: 42px; }
+    }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <a class="brand" href="#">R1_LocaterV2</a>
+      <div class="nav-links">
+        <a href="#system">系统</a>
+        <a href="#demo">视频</a>
+        <a href="#workflow">闭环</a>
+        <a href="https://github.com/lwbscu/R1_LocaterV2">GitHub</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="hero">
+    <div>
+      <div class="eyebrow">STM32G4 · ODOMETRY · SENSOR FUSION</div>
+      <h1>R1_LocaterV2</h1>
+      <p class="tagline">面向 ROBOCON R1 的多传感器定位板：Lidar 启动局部位姿、H30 yaw、双正交编码轮里程计、双 DT35 测距和 PySide6 实时地图上位机对齐到同一套调试闭环。</p>
+      <div class="badges" aria-label="能力标签">
+        <span class="badge green">里程计</span>
+        <span class="badge cyan">多传感器融合</span>
+        <span class="badge yellow">RLHF 数据闭环</span>
+      </div>
+      <div class="actions">
+        <a class="btn primary" href="promo-video.html">观看演示视频</a>
+        <a class="btn" href="https://github.com/lwbscu/R1_LocaterV2">查看源码</a>
+        <a class="btn" href="promotion/index.html">媒体页</a>
+      </div>
+    </div>
+    <a class="hero-card" href="promo-video.html" aria-label="打开演示视频">
+      <img src="promotion/r1-locaterv2-poster.png" alt="R1_LocaterV2 宣传海报">
+    </a>
+  </main>
+
+  <section id="system">
+    <div class="section-head">
+      <h2>定位链路</h2>
+      <p class="muted">启动局部零点，厘米级地图建模，实车数据可回放。</p>
+    </div>
+    <div class="grid">
+      <article class="card">
+        <h3>高频局部位姿</h3>
+        <p>双正交编码轮里程计负责两帧 Lidar 之间的高频位移插值，H30 yaw 提供稳定航向基准。</p>
+      </article>
+      <article class="card">
+        <h3>绝对观测校验</h3>
+        <p>Lidar 提供启动坐标系下的局部绝对位姿，DT35 根据场地墙体 raycast 约束侧向距离。</p>
+      </article>
+      <article class="card">
+        <h3>离线数据闭环</h3>
+        <p>上位机记录 raw 串口、结构化 CSV 和地图截图，用于 real2sim 复盘、异常筛选和后续 RLHF 调参。</p>
+      </article>
+    </div>
+  </section>
+
+  <section id="demo">
+    <div class="section-head">
+      <h2>实车与仿真</h2>
+      <a class="btn" href="promo-video.html">打开大视频页</a>
+    </div>
+    <div class="media-panel">
+      <img src="promotion/r1-locaterv2-ui-demo.png" alt="PySide6 实时地图上位机">
+      <img src="promotion/r1-locaterv2-real-car-frame.png" alt="R1 实车传感器链路">
+    </div>
+  </section>
+
+  <section id="workflow">
+    <div class="section-head">
+      <h2>调试闭环</h2>
+      <p class="muted">不是只读传感器，而是把坐标系、墙体模型、传感器置信度和回放证据统一起来。</p>
+    </div>
+    <div class="grid">
+      <article class="card">
+        <h3>坐标约定</h3>
+        <p>红方启动区几何中心上电为 x=0, y=0, yaw=0；+X 指向地图正东，+Y 指向地图正北。</p>
+      </article>
+      <article class="card">
+        <h3>DT35 筛选</h3>
+        <p>墙体、梅林、坡道和长杆架按不同置信度建模，避免把遮挡、人流、缺墙和地面反射误当成定位约束。</p>
+      </article>
+      <article class="card">
+        <h3>主控协议</h3>
+        <p>USART2 输出最终位姿、Lidar、编码轮、H30 yaw 和双 DT35 数据，服务底盘主控闭环。</p>
+      </article>
+    </div>
+    <p class="footer">R1_LocaterV2 · STM32G4 多传感器定位板 · GitHub: lwbscu/R1_LocaterV2</p>
+  </section>
+</body>
+</html>

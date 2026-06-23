@@ -3,15 +3,31 @@
 R1_LocaterV2 是基于 STM32G4 的 R1 机器人定位板工程。它把 H30 MINI 惯导、双正交编码轮、Lidar 位姿、双 DT35 测距和 Windows 上位机调试工具统一到一套定位闭环中，用于比赛场地中的实时定位、传感器排障、数据采集和 real2sim 算法迭代。
 
 <p align="center">
-  <a href="https://raw.githack.com/lwbscu/R1_LocaterV2/main/docs/promotion/index.html">
+  <a href="https://raw.githack.com/lwbscu/R1_LocaterV2/main/docs/index.html">
     <img src="docs/promotion/r1-locaterv2-poster.png" alt="R1_LocaterV2 demo poster" width="1100">
   </a>
 </p>
 
-> - 宣传页（直接打开）：[`raw.githack 静态页`](https://raw.githack.com/lwbscu/R1_LocaterV2/main/docs/promotion/index.html)
-> - 页面源码：[`docs/promotion/index.html`](docs/promotion/index.html)
-> - 视频下载：[`完整演示 MP4`](docs/promotion/r1-locaterv2-demo.mp4) / [`A. 实车视频`](docs/promotion/r1-locaterv2-real-car-h264.mp4) / [`B. 仿真训练视频`](docs/promotion/r1-locaterv2-sim-preview.mp4)
-> - GIF 预览：[`docs/promotion/r1-locaterv2-demo-teaser.gif`](docs/promotion/r1-locaterv2-demo-teaser.gif)
+<p align="center">
+  <a href="https://github.com/lwbscu/R1_LocaterV2"><img alt="GitHub Repo" src="https://img.shields.io/badge/GitHub-Repo-181717?style=flat&logo=github&logoColor=white"></a>
+  <a href="https://raw.githack.com/lwbscu/R1_LocaterV2/main/docs/index.html"><img alt="Live Page" src="https://img.shields.io/badge/Live-Page-00a6d6?style=flat"></a>
+  <a href="https://raw.githack.com/lwbscu/R1_LocaterV2/main/docs/promo-video.html"><img alt="Demo Video" src="https://img.shields.io/badge/Demo-Video-ff4d4f?style=flat"></a>
+  <a href="docs/promotion/r1-locaterv2-demo.mp4"><img alt="MP4" src="https://img.shields.io/badge/MP4-H.264-38bdf8?style=flat"></a>
+  <img alt="STM32G4" src="https://img.shields.io/badge/MCU-STM32G4-2ea44f?style=flat">
+  <img alt="Fusion" src="https://img.shields.io/badge/%E5%A4%9A%E4%BC%A0%E6%84%9F%E5%99%A8-%E8%9E%8D%E5%90%88-ffc240?style=flat">
+</p>
+
+**启动局部零点，多传感器闭环。**
+
+R1_LocaterV2 把 Lidar 启动局部位姿、H30 yaw、双正交编码轮里程计、双 DT35 测距和 PySide6 实时地图上位机放到同一套定位调试闭环中，用于实车定位、传感器排障、数据采集和 real2sim / RLHF 迭代。
+
+<p align="center">
+  <a href="https://raw.githack.com/lwbscu/R1_LocaterV2/main/docs/promo-video.html">
+    <img src="docs/promotion/r1-locaterv2-ui-demo.png" alt="Watch the R1_LocaterV2 demo walkthrough" width="960">
+  </a>
+  <br>
+  <a href="https://raw.githack.com/lwbscu/R1_LocaterV2/main/docs/promo-video.html">打开演示视频与实车/仿真训练页</a>
+</p>
 
 ## 当前状态
 

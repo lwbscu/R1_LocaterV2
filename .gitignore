@@ -1,6 +1,8 @@
 /cmake-build-debug/
 AGENTS.md
 docs/*
+!docs/index.html
+!docs/promo-video.html
 !docs/promotion/
 !docs/promotion/**
 .skill-evals/

@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="R1_LocaterV2 演示视频：实车定位链路、PySide6 实时地图、DT35 raycast 和仿真训练回放。">
+  <title>R1_LocaterV2 | 演示视频</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #05070a;
+      --panel: #0f1b2a;
+      --panel2: #142235;
+      --line: #28435f;
+      --text: #edf5ff;
+      --muted: #9eb0c5;
+      --cyan: #27dcff;
+      --green: #2be28d;
+      --yellow: #ffc240;
+      --red: #ff5260;
+      --max: 1500px;
+    }
+
+    * { box-sizing: border-box; }
+    html { background: var(--bg); }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 72% 10%, rgba(39,220,255,0.17), transparent 34%),
+        radial-gradient(circle at 18% 20%, rgba(43,226,141,0.09), transparent 30%),
+        linear-gradient(180deg, #05070a 0%, #08121f 56%, #05070a 100%);
+      font: 16px/1.62 "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0.28;
+      background:
+        linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px);
+      background-size: 68px 68px;
+      mask-image: linear-gradient(180deg, black, transparent 92%);
+    }
+
+    a { color: inherit; text-decoration: none; }
+    main {
+      position: relative;
+      width: min(var(--max), calc(100vw - 36px));
+      margin: 0 auto;
+      padding: 34px 0 64px;
+    }
+
+    .nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 18px;
+      margin-bottom: 28px;
+    }
+    .brand { font-weight: 900; letter-spacing: 0.06em; }
+    .links { display: flex; gap: 12px; flex-wrap: wrap; color: var(--cyan); }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 320px;
+      gap: 24px;
+      align-items: end;
+      margin-bottom: 18px;
+    }
+    .eyebrow {
+      color: var(--green);
+      font: 900 0.82rem/1 Consolas, ui-monospace, monospace;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+    h1 {
+      margin: 0 0 12px;
+      font-size: clamp(3rem, 7vw, 6.4rem);
+      line-height: 0.9;
+      letter-spacing: -0.035em;
+    }
+    h1 em { color: var(--cyan); font-style: normal; }
+    .lead { margin: 0; color: #cbd7e4; font-size: 1.08rem; max-width: 780px; }
+    .meta {
+      border: 1px solid rgba(238,245,255,0.12);
+      border-radius: 14px;
+      background: rgba(16,24,33,0.62);
+      padding: 16px;
+      color: var(--muted);
+      font-family: Consolas, ui-monospace, monospace;
+      font-size: 0.92rem;
+    }
+    .meta b { color: var(--text); }
+
+    .player {
+      border: 1px solid rgba(238,245,255,0.13);
+      border-radius: 18px;
+      background: rgba(5, 9, 15, 0.76);
+      padding: 12px;
+      box-shadow: 0 34px 110px rgba(0,0,0,0.5);
+    }
+    video {
+      display: block;
+      width: 100%;
+      border-radius: 14px;
+      background: #05070a;
+    }
+    .primary-video { aspect-ratio: 16 / 9; min-height: 560px; }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin: 16px 0 34px;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 42px;
+      padding: 9px 14px;
+      border-radius: 8px;
+      border: 1px solid rgba(238,245,255,0.14);
+      background: rgba(16,24,33,0.72);
+      color: var(--text);
+      font-weight: 800;
+    }
+    .btn.primary { background: linear-gradient(90deg, var(--green), var(--cyan)); color: #041018; border-color: transparent; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 22px;
+      margin-top: 24px;
+    }
+    .video-card {
+      border: 2px solid rgba(255,82,96,0.9);
+      border-radius: 18px;
+      background: linear-gradient(180deg, rgba(20,34,53,0.96), rgba(8,13,20,0.96));
+      padding: 18px;
+    }
+    .video-title { display: flex; align-items: baseline; gap: 10px; margin: 0 0 10px; }
+    .video-title .zh { font-size: 34px; font-weight: 900; }
+    .video-title .en { color: var(--muted); font-size: 15px; font-weight: 800; text-transform: uppercase; }
+    .video-card p { color: var(--muted); margin: 0 0 14px; }
+    .video-card video { aspect-ratio: 16 / 9; min-height: 360px; }
+
+    @media (max-width: 920px) {
+      .hero, .grid { grid-template-columns: 1fr; }
+      .primary-video, .video-card video { min-height: auto; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <nav class="nav">
+      <a class="brand" href="index.html">R1_LocaterV2</a>
+      <div class="links">
+        <a href="index.html">宣传页</a>
+        <a href="https://github.com/lwbscu/R1_LocaterV2">GitHub</a>
+      </div>
+    </nav>
+
+    <section class="hero">
+      <div>
+        <div class="eyebrow">DEMO WALKTHROUGH</div>
+        <h1>定位闭环<em>演示</em></h1>
+        <p class="lead">完整演示 R1_LocaterV2 的上位机地图、启动局部坐标、DT35 raycast、实车链路和仿真训练回放。视频源使用 H.264 / yuv420p，并通过 CDN 作为网页播放器资源。</p>
+      </div>
+      <div class="meta">
+        <b>坐标语义</b><br>
+        start: x=0, y=0, yaw=0<br>
+        +X: east / 正东<br>
+        +Y: north / 正北<br>
+        sensors: Lidar + H30 + Encoder + DT35
+      </div>
+    </section>
+
+    <section class="player" aria-label="完整演示视频">
+      <video class="primary-video" controls muted playsinline poster="promotion/r1-locaterv2-poster.png">
+        <source src="https://cdn.jsdelivr.net/gh/lwbscu/R1_LocaterV2@main/docs/promotion/r1-locaterv2-demo.mp4" type="video/mp4">
+      </video>
+    </section>
+
+    <div class="actions">
+      <a class="btn primary" href="https://cdn.jsdelivr.net/gh/lwbscu/R1_LocaterV2@main/docs/promotion/r1-locaterv2-demo.mp4">下载完整演示 MP4</a>
+      <a class="btn" href="promotion/r1-locaterv2-demo-teaser.gif">GIF 预览</a>
+      <a class="btn" href="index.html">返回宣传页</a>
+    </div>
+
+    <section class="grid" aria-label="实车与仿真训练视频">
+      <article class="video-card">
+        <h2 class="video-title">
+          <span class="zh">A. 实车视频</span>
+          <span class="en">Real Car Video</span>
+        </h2>
+        <p>实车链路、定位板、场地结构和传感器联调现场。</p>
+        <video controls muted playsinline poster="promotion/r1-locaterv2-real-car-frame.png">
+          <source src="https://cdn.jsdelivr.net/gh/lwbscu/R1_LocaterV2@main/docs/promotion/r1-locaterv2-real-car-h264.mp4" type="video/mp4">
+        </video>
+      </article>
+      <article class="video-card">
+        <h2 class="video-title">
+          <span class="zh">B. 仿真训练视频</span>
+          <span class="en">Simulation Training Video</span>
+        </h2>
+        <p>上位机地图回放、DT35 raycast、轨迹和传感器状态演示。</p>
+        <video controls muted playsinline poster="promotion/r1-locaterv2-field-model-overview.png">
+          <source src="https://cdn.jsdelivr.net/gh/lwbscu/R1_LocaterV2@main/docs/promotion/r1-locaterv2-sim-preview.mp4" type="video/mp4">
+        </video>
+      </article>
+    </section>
+  </main>
+</body>
+</html>
