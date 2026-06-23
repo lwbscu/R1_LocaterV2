@@ -5,6 +5,8 @@ docs/*
 !docs/promo-video.html
 !docs/promotion/
 !docs/promotion/**
+docs/promotion/*draft*.md
+docs/promotion/*草稿*.md
 .skill-evals/
 .promotion-context.json
 codex日志.md

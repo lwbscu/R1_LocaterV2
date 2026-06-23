@@ -157,8 +157,6 @@ docs/promotion/          README 封面、演示视频、平台文章草稿、剪
 - 独立宣传页：[`docs/index.html`](https://raw.githack.com/lwbscu/R1_LocaterV2/main/docs/index.html)
 - 演示视频页：[`docs/promo-video.html`](https://raw.githack.com/lwbscu/R1_LocaterV2/main/docs/promo-video.html)
 - 剪映草稿脚本：[`docs/promotion/jianying/create_r1_locaterv2_promo.py`](docs/promotion/jianying/create_r1_locaterv2_promo.py)
-- 掘金草稿：[`docs/promotion/juejin-draft.md`](docs/promotion/juejin-draft.md)
-- 知乎草稿：[`docs/promotion/zhihu-draft.md`](docs/promotion/zhihu-draft.md)
 
 ## 相关文档
 
