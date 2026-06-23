@@ -65,7 +65,7 @@ PC 上位机使用 PySide6 写，不用 ROS、不用 Web，也不依赖 Foxglove
 当前工程已经跑通：
 
 - STM32G4 固件。
-- USART1 上位机/VOFA 调试输出。
+- USART1 轻量定位 CSV 调试输出。
 - USART2 底盘主控定位帧。
 - H30 / 编码轮 / Lidar / DT35 数据链路。
 - PySide6 实时地图、采集、回放、仿真分析。

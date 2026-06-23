@@ -4,22 +4,14 @@ R1_LocaterV2 是基于 STM32G4 的 R1 机器人定位板工程。它把 H30 MINI
 
 <p align="center">
   <a href="docs/promotion/r1-locaterv2-demo.mp4">
-    <img src="docs/promotion/r1-locaterv2-poster.png" alt="R1_LocaterV2 demo poster" width="920">
+    <img src="docs/promotion/r1-locaterv2-poster.png" alt="R1_LocaterV2 demo poster" width="1100">
   </a>
-</p>
-
-<p align="center">
-  <video controls muted playsinline width="920" poster="docs/promotion/r1-locaterv2-poster.png">
-    <source src="https://raw.githubusercontent.com/lwbscu/R1_LocaterV2/main/docs/promotion/r1-locaterv2-demo.mp4" type="video/mp4">
-  </video>
-</p>
-
-<p align="center">
-  <img src="docs/promotion/r1-locaterv2-demo-teaser.gif" alt="R1_LocaterV2 demo GIF preview" width="920">
 </p>
 
 > 宣传页：[`docs/promotion/index.html`](docs/promotion/index.html)  
 > 演示视频 MP4：[`docs/promotion/r1-locaterv2-demo.mp4`](docs/promotion/r1-locaterv2-demo.mp4)  
+> A. 实车视频 / Real Car Video：[`docs/promotion/r1-locaterv2-real-car-h264.mp4`](docs/promotion/r1-locaterv2-real-car-h264.mp4)
+> B. 仿真训练视频 / Simulation Training Video：[`docs/promotion/r1-locaterv2-sim-preview.mp4`](docs/promotion/r1-locaterv2-sim-preview.mp4)
 > GIF 预览：[`docs/promotion/r1-locaterv2-demo-teaser.gif`](docs/promotion/r1-locaterv2-demo-teaser.gif)  
 > 实车原始视频：[`locater_map/assets/实车.mp4`](locater_map/assets/实车.mp4)
 
@@ -44,7 +36,7 @@ R1_LocaterV2 是基于 STM32G4 的 R1 机器人定位板工程。它把 H30 MINI
 
 | 模块 | 外设 | 作用 |
 | --- | --- | --- |
-| VOFA / 上位机 | USART1 `115200` | 输出 CSV 调试帧，支持无线串口实时地图 |
+| 调试上位机 | USART1 `115200` | 输出轻量定位 CSV，支持无线串口实时地图 |
 | 底盘主控 | USART2 `1152000` | 输出 `PG + 11 float + checksum` 二进制帧 |
 | Lidar | USART3 `115200` | 接收雷达定位数据 |
 | H30 MINI | UART4 `460800` | 接收 yaw / 姿态数据 |
@@ -55,7 +47,7 @@ R1_LocaterV2 是基于 STM32G4 的 R1 机器人定位板工程。它把 H30 MINI
 
 ### USART1: `r1_csv_v3`
 
-默认输出 12 列纯数字 CSV，兼容 VOFA 和上位机：
+默认输出 12 列纯数字 CSV，供上位机、日志采集和回放工具解析：
 
 ```text
 pos_x,pos_y,pos_yaw,lidar_x,lidar_y,lidar_yaw,encoder_x,encoder_y,h30_yaw,dt35_1_mm,dt35_2_mm,status_mask

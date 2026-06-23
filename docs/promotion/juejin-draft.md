@@ -31,7 +31,7 @@ R1_LocaterV2 是我们为 R1 机器人重新做的一版定位板工程。硬件
 
 | 接口 | 波特率 | 用途 |
 | --- | ---: | --- |
-| USART1 | 115200 | VOFA / PySide6 上位机 CSV |
+| USART1 | 115200 | 轻量定位 CSV / PySide6 实时地图 |
 | USART2 | 1152000 | 发送给底盘主控 |
 | USART3 | 115200 | 接收 Lidar 数据 |
 | UART4 | 460800 | 接收 H30 MINI IMU |
@@ -43,7 +43,7 @@ USART1 默认输出 12 列 `r1_csv_v3`：
 pos_x,pos_y,pos_yaw,lidar_x,lidar_y,lidar_yaw,encoder_x,encoder_y,h30_yaw,dt35_1_mm,dt35_2_mm,status_mask
 ```
 
-它兼容 VOFA，也能被上位机直接解析。USART2 给底盘主控输出 `PG + 11 float + checksum`，包含最终定位、Lidar、编码轮、H30 yaw 和两个 DT35 距离。
+它能被上位机直接解析，也便于记录和回放定位数据。USART2 给底盘主控输出 `PG + 11 float + checksum`，包含最终定位、Lidar、编码轮、H30 yaw 和两个 DT35 距离。
 
 ## 坐标系：不要把场地中心误当成机器人零点
 

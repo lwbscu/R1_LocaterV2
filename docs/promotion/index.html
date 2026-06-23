@@ -63,10 +63,23 @@
       padding: 16px;
       box-shadow: 0 18px 60px rgba(0, 0, 0, 0.32);
     }
-    .video-card h2 {
+    .video-title {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
       margin: 0 0 10px;
-      font-size: 24px;
+    }
+    .video-title .zh {
+      font-size: 28px;
+      font-weight: 800;
       letter-spacing: 0;
+    }
+    .video-title .en {
+      color: var(--muted);
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 0;
+      text-transform: uppercase;
     }
     .video-card p {
       margin: 0 0 14px;
@@ -79,41 +92,6 @@
       border-radius: 12px;
       border: 1px solid rgba(149, 167, 187, 0.25);
       background: #050b12;
-    }
-    .links {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 12px;
-      margin-top: 22px;
-      justify-content: center;
-    }
-    .button {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      min-height: 40px;
-      border-radius: 10px;
-      padding: 0 15px;
-      text-decoration: none;
-      color: #06101a;
-      background: var(--cyan);
-      font-weight: 700;
-    }
-    .button.secondary {
-      color: var(--text);
-      background: transparent;
-      border: 1px solid var(--line);
-    }
-    .note {
-      margin: 18px auto 0;
-      max-width: 820px;
-      text-align: center;
-      color: var(--muted);
-    }
-    .footer {
-      margin-top: 32px;
-      color: var(--muted);
-      text-align: center;
     }
     @media (max-width: 820px) {
       .videos {
@@ -130,30 +108,26 @@
 
     <section class="videos" aria-label="演示视频">
       <article class="video-card">
-        <h2>仿真视频</h2>
-        <p>上位机地图回放、DT35 raycast、轨迹和传感器状态演示。</p>
-        <video controls muted playsinline poster="r1-locaterv2-field-model-overview.png">
-          <source src="r1-locaterv2-sim-preview.mp4" type="video/mp4">
-        </video>
-      </article>
-      <article class="video-card">
-        <h2>实车视频</h2>
+        <h2 class="video-title">
+          <span class="zh">A. 实车视频</span>
+          <span class="en">Real Car Video</span>
+        </h2>
         <p>R1 实车链路、定位板、场地结构和传感器联调现场。</p>
         <video controls muted playsinline poster="r1-locaterv2-real-car-frame.png">
           <source src="r1-locaterv2-real-car-h264.mp4" type="video/mp4">
         </video>
       </article>
+      <article class="video-card">
+        <h2 class="video-title">
+          <span class="zh">B. 仿真训练视频</span>
+          <span class="en">Simulation Training Video</span>
+        </h2>
+        <p>上位机地图回放、DT35 raycast、轨迹和传感器状态演示。</p>
+        <video controls muted playsinline poster="r1-locaterv2-field-model-overview.png">
+          <source src="r1-locaterv2-sim-preview.mp4" type="video/mp4">
+        </video>
+      </article>
     </section>
-
-    <p class="note">完整 1 分钟串联演示可播放 <a href="r1-locaterv2-demo.mp4">r1-locaterv2-demo.mp4</a>；README 中同时提供 GIF 预览，避免部分平台屏蔽 video 标签。</p>
-
-    <nav class="links" aria-label="相关链接">
-      <a class="button" href="r1-locaterv2-demo.mp4">完整演示视频</a>
-      <a class="button secondary" href="r1-locaterv2-demo-teaser.gif">GIF 预览</a>
-      <a class="button secondary" href="../../README.md">返回 README</a>
-    </nav>
-
-    <p class="footer">R1_LocaterV2 · STM32G4 多传感器定位调试闭环</p>
   </main>
 </body>
 </html>
