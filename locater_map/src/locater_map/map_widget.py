@@ -109,12 +109,38 @@ class FieldMapView(QGraphicsView):
             return QPen(QColor(80, 255, 130, 230), 2.5), QColor(80, 255, 130, 38)
         if target_type == "blocker":
             return QPen(QColor(255, 160, 75, 210), 2.0), QColor(255, 160, 75, 35)
+        if target_type == "start_zone":
+            pen = QPen(QColor(255, 65, 75, 210), 2.0)
+            pen.setStyle(Qt.PenStyle.DashLine)
+            return pen, QColor(255, 65, 75, 8)
         return QPen(QColor(255, 65, 75, 230), 2.5), QColor(255, 65, 75, 25)
 
     def _add_field_model_overlay(self) -> None:
         model = self.config.get("field_model", {})
         if not bool(model.get("enabled", False)):
             return
+        if bool(model.get("use_field_boundary", False)):
+            map_cfg = self.config.get("map", {})
+            width = float(model.get("field_width_cm", map_cfg.get("field_width_cm", 1215.0)))
+            height = float(model.get("field_height_cm", map_cfg.get("field_height_cm", 1210.0)))
+            x0 = -width * 0.5
+            x1 = width * 0.5
+            y0 = -height * 0.5
+            y1 = height * 0.5
+            pen, _brush = self._target_style("usable_wall")
+            for name, ax, ay, bx, by in (
+                ("field_left", x0, y0, x0, y1),
+                ("field_right", x1, y0, x1, y1),
+                ("field_bottom", x0, y0, x1, y0),
+                ("field_top", x0, y1, x1, y1),
+            ):
+                a = self._world_to_scene(ax, ay)
+                b = self._world_to_scene(bx, by)
+                line = self.scene_obj.addLine(a.x(), a.y(), b.x(), b.y(), pen)
+                line.setZValue(-25)
+                line.setToolTip(f"{name} [usable_wall]")
+                self._field_model_items.append(line)
+
         for item in model.get("segments", []):
             if not bool(item.get("enabled", True)):
                 continue
@@ -140,6 +166,21 @@ class FieldMapView(QGraphicsView):
             rect_item = self.scene_obj.addRect(rect, pen, brush)
             rect_item.setZValue(-24)
             rect_item.setToolTip(f"{item.get('name', 'rect')} [{target_type}]")
+            self._field_model_items.append(rect_item)
+
+        for item in model.get("visual_rectangles", []):
+            if not bool(item.get("enabled", True)):
+                continue
+            target_type = str(item.get("target_type", "start_zone"))
+            pen, brush = self._target_style(target_type)
+            cx = float(item.get("center_x_cm", 0.0))
+            cy = float(item.get("center_y_cm", 0.0))
+            width = float(item.get("width_cm", 0.0))
+            height = float(item.get("height_cm", 0.0))
+            rect = QRectF(cx - width * 0.5, -(cy + height * 0.5), width, height)
+            rect_item = self.scene_obj.addRect(rect, pen, brush)
+            rect_item.setZValue(-23)
+            rect_item.setToolTip(f"{item.get('name', 'visual')} [{target_type}, visual only]")
             self._field_model_items.append(rect_item)
 
         for item in self._field_model_items:
@@ -257,7 +298,8 @@ class FieldMapView(QGraphicsView):
         field_model.setdefault("field_width_cm", self.config.get("map", {}).get("field_width_cm", 1215.0))
         field_model.setdefault("field_height_cm", self.config.get("map", {}).get("field_height_cm", 1210.0))
         residual_warn = float(field_model.get("residual_warn_cm", 8.0))
-        yaw_for_dt35 = dt35_yaw_from_frame(frame)
+        yaw_source = str(self.config.get("dt35", {}).get("display_yaw_source", "pos"))
+        yaw_for_dt35 = dt35_yaw_from_frame(frame, yaw_source)
         for key, distance in (("sensor_1", frame.dt35_1_mm), ("sensor_2", frame.dt35_2_mm)):
             cfg = self.config["dt35"].get(key, {})
             ray = dt35_ray(frame.pos_x_cm, frame.pos_y_cm, yaw_for_dt35, cfg, distance, field_model)
@@ -265,7 +307,10 @@ class FieldMapView(QGraphicsView):
             target_type = str(ray.get("expected_target_type", ""))
             correction_allowed = bool(ray.get("correction_allowed", False))
             corner_ambiguous = bool(ray.get("corner_ambiguous", False))
-            if ray["valid"] and not correction_allowed:
+            floor_hit_suspect = bool(ray.get("floor_hit_suspect", False))
+            if ray["valid"] and floor_hit_suspect:
+                color = QColor("#ff6b35")
+            elif ray["valid"] and not correction_allowed:
                 if corner_ambiguous:
                     color = QColor("#ff4d4d")
                 elif target_type == "blocker":
@@ -279,10 +324,10 @@ class FieldMapView(QGraphicsView):
             else:
                 color = QColor("#00ffaa") if ray["valid"] else QColor(160, 160, 160, 140)
             pen = QPen(color, 1.5)
-            if not ray["valid"]:
+            if not ray["valid"] or floor_hit_suspect:
                 pen.setStyle(Qt.PenStyle.DashLine)
             a = self._world_to_scene(float(ray["sensor_x_cm"]), float(ray["sensor_y_cm"]))
-            b = self._world_to_scene(float(ray["hit_x_cm"]), float(ray["hit_y_cm"]))
+            b = self._world_to_scene(float(ray["display_hit_x_cm"]), float(ray["display_hit_y_cm"]))
             line = self.scene_obj.addLine(a.x(), a.y(), b.x(), b.y(), pen)
             emitter = self.scene_obj.addEllipse(a.x() - 2.5, a.y() - 2.5, 5, 5, QPen(QColor("#ffffff")), QColor("#ffffff"))
             dot = self.scene_obj.addEllipse(b.x() - 3, b.y() - 3, 6, 6, QPen(color), color)
@@ -326,7 +371,9 @@ class FieldMapView(QGraphicsView):
         target = str(ray.get("expected_target", "")) or "no_hit"
         target_type = str(ray.get("expected_target_type", "")) or "none"
         state = "ok" if bool(ray.get("correction_allowed", False)) else "skip"
-        if bool(ray.get("corner_ambiguous", False)):
+        if bool(ray.get("floor_hit_suspect", False)):
+            state = "floor/near-hit suspect"
+        elif bool(ray.get("corner_ambiguous", False)):
             state = "corner"
         elif target_type == "ignore":
             state = "ignore"
@@ -334,12 +381,18 @@ class FieldMapView(QGraphicsView):
         residual = float(ray.get("residual_cm", float("nan")))
         incidence = float(ray.get("incidence_deg", float("nan")))
         ray_yaw = float(ray.get("ray_yaw_deg", float("nan")))
+        measured = float(ray.get("distance_cm", float("nan")))
+        display_distance = float(ray.get("display_distance_cm", float("nan")))
+        clipped = bool(ray.get("display_clipped_by_model", False))
+        clip_target = str(ray.get("display_clip_target", "")) or target
         axis = self._dt35_axis(ray_yaw)
+        clip_line = f"\ndisplay clipped at {clip_target}, display={display_distance:.1f}cm" if clipped else ""
         return (
             f"{key} {state}\n"
             f"target={target} [{target_type}]\n"
             f"ray_yaw={ray_yaw:.1f}deg axis={axis}\n"
-            f"expected={expected:.1f}cm residual={residual:.1f}cm incidence={incidence:.1f}deg"
+            f"measured={measured:.1f}cm expected={expected:.1f}cm residual={residual:.1f}cm incidence={incidence:.1f}deg"
+            f"{clip_line}"
         )
 
     def _dt35_axis(self, ray_yaw_deg: float) -> str:

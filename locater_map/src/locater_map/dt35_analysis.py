@@ -140,6 +140,7 @@ class DT35FrameResidualRow:
     residual_cm: float
     residual_gate_cm: float
     residual_within_gate: bool
+    floor_hit_suspect: bool
     abs_residual_cm: float
     expected_target: str
     expected_target_type: str
@@ -168,6 +169,7 @@ class ResidualSummary:
     usable_rays: int
     fusion_usable_rays: int
     residual_gate_rejected_rays: int
+    floor_hit_suspect_rays: int
     ignored_rays: int
     out_of_range_rays: int
     grazing_filtered_rays: int
@@ -333,7 +335,8 @@ def analyze_dt35_frames(
             within_range = isfinite(expected_distance) and 0.0 < expected_distance <= max_range
             correction_allowed = bool(ray["correction_allowed"])
             residual_ok = isfinite(residual)
-            geometry_usable = bool(sensor_valid) and correction_allowed and within_range and residual_ok
+            floor_hit_suspect = bool(ray.get("floor_hit_suspect", False))
+            geometry_usable = bool(sensor_valid) and correction_allowed and within_range and residual_ok and not floor_hit_suspect
             residual_within_gate = residual_ok and abs(residual) <= residual_gate_cm
             rows.append(
                 DT35FrameResidualRow(
@@ -352,6 +355,7 @@ def analyze_dt35_frames(
                     residual_cm=residual,
                     residual_gate_cm=residual_gate_cm,
                     residual_within_gate=residual_within_gate,
+                    floor_hit_suspect=floor_hit_suspect,
                     abs_residual_cm=abs(residual) if residual_ok else float("nan"),
                     expected_target=str(ray["expected_target"]),
                     expected_target_type=str(ray["expected_target_type"]),
@@ -514,7 +518,7 @@ def summarize_residuals(rows: list[DT35FrameResidualRow]) -> ResidualSummary:
     target_types = Counter(row.expected_target_type or "no_hit" for row in rows)
     targets = Counter(row.expected_target or "no_hit" for row in rows)
     return ResidualSummary(
-        frames=len({row.seq for row in rows}),
+        frames=(len(rows) // 2) if rows else 0,
         rays=len(rows),
         valid_rays=sum(1 for row in rows if row.sensor_valid),
         usable_rays=sum(1 for row in rows if row.usable_for_correction),
@@ -522,6 +526,7 @@ def summarize_residuals(rows: list[DT35FrameResidualRow]) -> ResidualSummary:
         residual_gate_rejected_rays=sum(
             1 for row in rows if row.usable_for_correction and not row.residual_within_gate
         ),
+        floor_hit_suspect_rays=sum(1 for row in rows if row.floor_hit_suspect),
         ignored_rays=sum(1 for row in rows if row.expected_target_type == "ignore"),
         out_of_range_rays=sum(1 for row in rows if row.expected_target and not row.within_range),
         grazing_filtered_rays=sum(1 for row in rows if _is_grazing_filtered(row)),
@@ -627,6 +632,7 @@ def print_residual_summary(summary: ResidualSummary) -> None:
     print(
         f"frames={summary.frames} rays={summary.rays} valid={summary.valid_rays} usable={summary.usable_rays} "
         f"fusion_usable={summary.fusion_usable_rays} gate_rejected={summary.residual_gate_rejected_rays} "
+        f"floor_hit_suspect={summary.floor_hit_suspect_rays} "
         f"out_of_range={summary.out_of_range_rays} ignore={summary.ignored_rays} "
         f"grazing_filtered={summary.grazing_filtered_rays} corner_ambiguous={summary.corner_ambiguous_rays} "
         f"mean_abs_residual_cm={summary.mean_abs_residual_cm} rms_residual_cm={summary.rms_residual_cm} "
@@ -685,6 +691,8 @@ def _risk_label(row: DT35HitRow | DT35FrameResidualRow) -> str:
         return "no_hit"
     if row.expected_target_type == "ignore":
         return "ignored_geometry"
+    if getattr(row, "floor_hit_suspect", False):
+        return "floor_or_near_hit_suspect"
     if not row.within_range:
         return "out_of_range"
     if row.corner_ambiguous:

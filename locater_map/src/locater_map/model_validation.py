@@ -194,6 +194,7 @@ def _residual_group_stats(rows: list[Any]) -> dict[str, Any]:
         "residual_gate_rejected_rays": sum(
             1 for row in rows if row.usable_for_correction and not getattr(row, "residual_within_gate", True)
         ),
+        "floor_hit_suspect_rays": sum(1 for row in rows if getattr(row, "floor_hit_suspect", False)),
         "ignored_rays": sum(1 for row in rows if row.expected_target_type == "ignore"),
         "corner_ambiguous_rays": sum(1 for row in rows if getattr(row, "corner_ambiguous", False)),
         "out_of_range_rays": sum(1 for row in rows if row.expected_target and not row.within_range),
@@ -206,6 +207,7 @@ def _residual_group_stats(rows: list[Any]) -> dict[str, Any]:
         "valid_rate": _safe_ratio(sum(1 for row in rows if row.sensor_valid), len(rows)),
         "usable_rate": _safe_ratio(len(geometry_usable), len(rows)),
         "fusion_usable_rate": _safe_ratio(len(fusion_usable), len(rows)),
+        "floor_hit_suspect_rate": _safe_ratio(sum(1 for row in rows if getattr(row, "floor_hit_suspect", False)), len(rows)),
         "corner_rate": _safe_ratio(sum(1 for row in rows if getattr(row, "corner_ambiguous", False)), len(rows)),
         "out_of_range_rate": _safe_ratio(sum(1 for row in rows if row.expected_target and not row.within_range), len(rows)),
         "ignore_rate": _safe_ratio(sum(1 for row in rows if row.expected_target_type == "ignore"), len(rows)),
@@ -232,6 +234,7 @@ def _dt35_quality(config: dict[str, Any], by_target: dict[str, dict[str, Any]]) 
         valid_usable_rate = _safe_ratio(usable_rays, valid_rays)
         valid_fusion_usable_rate = _safe_ratio(fusion_usable_rays, valid_rays)
         corner_rate = float(stats.get("corner_rate") or 0.0)
+        floor_hit_rate = float(stats.get("floor_hit_suspect_rate") or 0.0)
         ignore_rate = float(stats.get("ignore_rate") or 0.0)
 
         if rms is not None and float(rms) > residual_warn:
@@ -242,6 +245,8 @@ def _dt35_quality(config: dict[str, Any], by_target: dict[str, dict[str, Any]]) 
             reasons.append("low_fusion_usable_rate")
         if corner_rate > 0.25:
             reasons.append("many_corner_hits")
+        if floor_hit_rate > 0.25:
+            reasons.append("many_floor_or_near_hits")
 
         if reasons:
             bad_targets.append({
@@ -312,6 +317,8 @@ def _validation_gates(
         notes.append("DT35 measurements did not hit usable modeled geometry; check field model, range, or pose.")
     if not checks["has_fusion_usable_dt35"]:
         notes.append("DT35 geometry was usable but no ray passed the residual fusion gate; inspect residual_gate_rejected_rays.")
+    if int(residuals.get("floor_hit_suspect_rays") or 0) > 0:
+        notes.append("Some DT35 rays were rejected as floor/near-hit suspects because measured distance was much shorter than the modeled target.")
     if not checks["fusion_not_worse_than_raw"]:
         notes.append("Live fusion is not better than raw firmware pose against lidar under current settings.")
     if not checks["dt35_residual_within_limit"]:

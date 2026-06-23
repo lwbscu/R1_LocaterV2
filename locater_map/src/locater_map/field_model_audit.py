@@ -59,7 +59,7 @@ def build_field_model_audit(
             "forest_top_view_model": "each forest is 3 x 4 cells, 120 cm per cell, total 360 cm x 480 cm",
             "ramp_top_view_model": "150 cm x 150 cm solid obstacle footprints",
             "ramp_side_view_note": "the 270 cm side-view ramp/platform dimension is not used as a larger top-view DT35 blocker",
-            "forest_note": "forest grid is modeled as a blocking solid obstacle; DT35 cannot pass through it",
+            "forest_note": "forest grid edges are modeled as red usable walls; DT35 cannot pass through them",
             "ignored_area_note": "top long-pole racks are modeled as ignored interference, not trusted correction surfaces",
         },
         "manual_dimension_checks": manual_dimension_checks,
@@ -160,8 +160,8 @@ def _behavior_section(hit_rows) -> dict[str, Any]:
     usable_targets = Counter(row.expected_target for row in usable if row.expected_target)
     usable_types = Counter(row.expected_target_type for row in usable if row.expected_target_type)
     ignored_targets = Counter(row.expected_target for row in hit_rows if row.expected_target_type == "ignore")
+    forest_targets = [row.expected_target for row in usable if "forest" in row.expected_target]
     solid_targets = [row.expected_target for row in usable if row.expected_target_type == "solid_obstacle"]
-    forest_targets = [name for name in solid_targets if "forest" in name]
     ramp_targets = [name for name in solid_targets if "ramp" in name]
     return {
         "usable_target_type_counts": dict(sorted(usable_types.items())),
@@ -202,13 +202,13 @@ def _model_self_check(
         _check("has_forest_blockers", any("forest" in name for name in names)),
         _check("has_ramp_blockers", any("ramp" in name for name in names)),
         _check(
-            "dt35_sensor_1_right_side_left_ray",
-            float(dt35_section.get("sensor_1", {}).get("offset_x_cm", 0.0)) > 0.0
+            "dt35_sensor_1_left_side_left_ray",
+            float(dt35_section.get("sensor_1", {}).get("offset_x_cm", 0.0)) < 0.0
             and float(dt35_section.get("sensor_1", {}).get("yaw_offset_deg", 0.0)) < 0.0,
         ),
         _check(
-            "dt35_sensor_2_left_side_right_ray",
-            float(dt35_section.get("sensor_2", {}).get("offset_x_cm", 0.0)) < 0.0
+            "dt35_sensor_2_right_side_right_ray",
+            float(dt35_section.get("sensor_2", {}).get("offset_x_cm", 0.0)) > 0.0
             and float(dt35_section.get("sensor_2", {}).get("yaw_offset_deg", 0.0)) > 0.0,
         ),
         _check("default_poses_have_usable_dt35_rays", int(coverage.get("usable_rays", 0)) > 0),
@@ -247,10 +247,10 @@ def _manual_dimension_checks(
         _dimension_check("field_height_cm", float(map_section.get("field_height_cm", 0.0)), 1210.0, 0.01, "manual outer field height"),
         _dimension_check("map_pixels_per_cm_x", float(map_section.get("pixels_per_cm_x", 0.0)), 2.0, 0.001, "prior-map horizontal scale"),
         _dimension_check("map_pixels_per_cm_y", float(map_section.get("pixels_per_cm_y", 0.0)), 2.0, 0.001, "prior-map vertical scale"),
-        _dimension_check("dt35_sensor_1_offset_x_cm", float(dt35_section.get("sensor_1", {}).get("offset_x_cm", 0.0)), 40.4, 0.05, "DT35-1 right mount offset"),
+        _dimension_check("dt35_sensor_1_offset_x_cm", float(dt35_section.get("sensor_1", {}).get("offset_x_cm", 0.0)), -40.4, 0.05, "DT35-1 left mount offset"),
         _dimension_check("dt35_sensor_1_offset_y_cm", float(dt35_section.get("sensor_1", {}).get("offset_y_cm", 0.0)), -3.3, 0.05, "DT35-1 rear offset"),
         _dimension_check("dt35_sensor_1_yaw_offset_deg", float(dt35_section.get("sensor_1", {}).get("yaw_offset_deg", 0.0)), -90.0, 0.01, "DT35-1 left-facing ray"),
-        _dimension_check("dt35_sensor_2_offset_x_cm", float(dt35_section.get("sensor_2", {}).get("offset_x_cm", 0.0)), -40.4, 0.05, "DT35-2 left mount offset"),
+        _dimension_check("dt35_sensor_2_offset_x_cm", float(dt35_section.get("sensor_2", {}).get("offset_x_cm", 0.0)), 40.4, 0.05, "DT35-2 right mount offset"),
         _dimension_check("dt35_sensor_2_offset_y_cm", float(dt35_section.get("sensor_2", {}).get("offset_y_cm", 0.0)), -3.3, 0.05, "DT35-2 rear offset"),
         _dimension_check("dt35_sensor_2_yaw_offset_deg", float(dt35_section.get("sensor_2", {}).get("yaw_offset_deg", 0.0)), 90.0, 0.01, "DT35-2 right-facing ray"),
     ]
@@ -258,12 +258,21 @@ def _manual_dimension_checks(
         item = rectangles.get(name, {})
         checks.append(_dimension_check(f"{name}_width_cm", float(item.get("width_cm", 0.0)), 360.0, 0.5, "forest 3 cells x 120 cm"))
         checks.append(_dimension_check(f"{name}_height_cm", float(item.get("height_cm", 0.0)), 480.0, 0.5, "forest 4 cells x 120 cm"))
-        checks.append(_target_type_check(f"{name}_solid_obstacle", item, "solid_obstacle"))
-    for name in ("red_left_ramp_zone_450h", "blue_right_ramp_zone_450h"):
+        checks.append(_target_type_check(f"{name}_usable_wall", item, "usable_wall"))
+        checks.append(_bool_check(f"{name}_not_missing_target_skippable", item.get("missing_target_skippable") is False))
+    ramp_expected = {
+        "red_left_ramp_zone_450h": (155.0, 148.0, "asset-aligned left ramp visible footprint"),
+        "blue_right_ramp_zone_450h": (148.5, 148.5, "asset-aligned right ramp visible footprint"),
+    }
+    for name, (width_cm, height_cm, note) in ramp_expected.items():
         item = rectangles.get(name, {})
-        checks.append(_dimension_check(f"{name}_width_cm", float(item.get("width_cm", 0.0)), 150.0, 0.5, "ramp top-view footprint width"))
-        checks.append(_dimension_check(f"{name}_height_cm", float(item.get("height_cm", 0.0)), 150.0, 0.5, "ramp top-view footprint height"))
+        checks.append(_dimension_check(f"{name}_width_cm", float(item.get("width_cm", 0.0)), width_cm, 0.5, note))
+        checks.append(_dimension_check(f"{name}_height_cm", float(item.get("height_cm", 0.0)), height_cm, 0.5, note))
         checks.append(_target_type_check(f"{name}_solid_obstacle", item, "solid_obstacle"))
+    bottom_barrier = rectangles.get("bottom_center_barrier_wall", {})
+    checks.append(_dimension_check("bottom_center_barrier_wall_width_cm", float(bottom_barrier.get("width_cm", 0.0)), 28.0, 0.5, "asset-aligned bottom center barrier width"))
+    checks.append(_dimension_check("bottom_center_barrier_wall_height_cm", float(bottom_barrier.get("height_cm", 0.0)), 161.0, 0.5, "asset-aligned bottom center barrier height"))
+    checks.append(_dimension_check("bottom_center_barrier_wall_center_y_cm", float(bottom_barrier.get("center_y_cm", 0.0)), -473.75, 0.5, "asset-aligned bottom center barrier vertical center"))
     divider = segments.get("center_divider_wall", {})
     checks.append(_dimension_check("center_divider_x1_cm", float(divider.get("x1_cm", 999.0)), 0.0, 0.01, "center divider on field centerline"))
     checks.append(_dimension_check("center_divider_x2_cm", float(divider.get("x2_cm", 999.0)), 0.0, 0.01, "center divider on field centerline"))
@@ -292,6 +301,16 @@ def _target_type_check(name: str, item: dict[str, Any], expected: str) -> dict[s
         "actual": actual,
         "expected": expected,
         "note": "field-model semantic class used by DT35 raycasting",
+    }
+
+
+def _bool_check(name: str, passed: bool) -> dict[str, Any]:
+    return {
+        "name": name,
+        "passed": bool(passed),
+        "actual": bool(passed),
+        "expected": True,
+        "note": "boolean field-model invariant",
     }
 
 

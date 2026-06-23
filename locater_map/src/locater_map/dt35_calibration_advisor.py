@@ -60,7 +60,7 @@ def build_calibration_advice(
         if row.expected_target_type == "ignore":
             ignored_targets += 1
             continue
-        if not row.sensor_valid or not row.usable_for_correction:
+        if not row.sensor_valid or not row.usable_for_fusion:
             continue
         if not row.expected_target or not isfinite(row.residual_cm):
             continue
@@ -187,7 +187,7 @@ def _target_axis(target: str, mean_dx: float, mean_dy: float) -> str:
     lower = target.lower()
     if lower.endswith(("_left", "_right")) or lower in ("field_left", "field_right", "center_divider_wall"):
         return "x"
-    if lower.endswith(("_top", "_bottom")) or lower in ("field_top", "field_bottom", "upper_red_r1_r2_wall", "upper_blue_r1_r2_wall", "lower_used_weapon_wall"):
+    if lower.endswith(("_top", "_bottom")) or lower in ("field_top", "field_bottom", "lower_used_weapon_wall"):
         return "y"
     if abs(mean_dx) >= abs(mean_dy) * 1.8:
         return "x"

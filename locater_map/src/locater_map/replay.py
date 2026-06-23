@@ -11,6 +11,7 @@ class ReplaySource:
         self.path = Path(csv_path)
         with self.path.open("r", encoding="utf-8", newline="") as f:
             self.frames = [RobotFrame.from_row(row) for row in csv.DictReader(f)]
+        self.display_ready = self.path.name.lower() == "display_frames.csv"
         self.index = 0
         self.playing = False
         self.speed = 1.0

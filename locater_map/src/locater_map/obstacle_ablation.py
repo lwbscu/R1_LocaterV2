@@ -70,7 +70,7 @@ def run_obstacle_ablation(
     fusion_cfg: FusionConfig | None = None,
 ) -> tuple[list[ObstacleAblationRow], ObstacleAblationSummary]:
     fusion = fusion_cfg or FusionConfig(lidar_stride=25, lidar_gain=1.0, dt35_gain=1.0, dt35_yaw_gain=0.0)
-    ablated_config = _disable_solid_obstacle_correction(config)
+    ablated_config = _disable_field_structure_correction(config)
     rows: list[ObstacleAblationRow] = []
     for index, path_name in enumerate(paths):
         synthetic_cfg = SyntheticConfig(
@@ -95,8 +95,8 @@ def run_obstacle_ablation(
             fusion,
             start_policy="off",
         )
-        full_solid = _fusion_allowed_type_count(full_rows, "solid_obstacle")
-        ablated_solid = _fusion_allowed_type_count(ablated_rows, "solid_obstacle")
+        full_solid = _fusion_allowed_field_structure_count(full_rows)
+        ablated_solid = _fusion_allowed_field_structure_count(ablated_rows)
         forest = _fusion_allowed_target_name_count(full_rows, "forest")
         ramp = _fusion_allowed_target_name_count(full_rows, "ramp")
         penalty = _diff(ablated_summary.fused_rms_xy_cm, full_summary.fused_rms_xy_cm)
@@ -142,24 +142,24 @@ def write_obstacle_ablation_summary(path: str | Path, summary: ObstacleAblationS
     out.write_text(json.dumps(summary.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-def _disable_solid_obstacle_correction(config: dict[str, Any]) -> dict[str, Any]:
+def _disable_field_structure_correction(config: dict[str, Any]) -> dict[str, Any]:
     out = copy.deepcopy(config)
     model = out.get("field_model", {})
     for item in model.get("segments", []):
-        if str(item.get("target_type", "")) == "solid_obstacle":
+        if _is_field_structure_name(str(item.get("name", ""))):
             item["correction_weight"] = 0.0
     for item in model.get("rectangles", []):
-        if str(item.get("target_type", "")) == "solid_obstacle":
+        if _is_field_structure_name(str(item.get("name", ""))):
             item["correction_weight"] = 0.0
     return out
 
 
-def _fusion_allowed_type_count(rows: list[PathDiagnosticRow], target_type: str) -> int:
+def _fusion_allowed_field_structure_count(rows: list[PathDiagnosticRow]) -> int:
     count = 0
     for row in rows:
-        if row.dt35_1_fusion_allowed and row.dt35_1_type == target_type:
+        if row.dt35_1_fusion_allowed and _is_field_structure_name(row.dt35_1_target):
             count += 1
-        if row.dt35_2_fusion_allowed and row.dt35_2_type == target_type:
+        if row.dt35_2_fusion_allowed and _is_field_structure_name(row.dt35_2_target):
             count += 1
     return count
 
@@ -173,6 +173,11 @@ def _fusion_allowed_target_name_count(rows: list[PathDiagnosticRow], name_part: 
         if row.dt35_2_fusion_allowed and part in row.dt35_2_target.lower():
             count += 1
     return count
+
+
+def _is_field_structure_name(name: str) -> bool:
+    lowered = name.lower()
+    return "forest" in lowered or "ramp" in lowered
 
 
 def _diff(a: float | None, b: float | None) -> float | None:

@@ -12,6 +12,7 @@ def _default_config() -> dict:
 
 def test_readiness_report_generates_offline_gate_artifacts(tmp_path):
     config = _default_config()
+    config["field_model"]["validation_max_fused_rms_xy_cm"] = 9.0
 
     report = run_readiness_report(
         config,
@@ -65,7 +66,7 @@ def test_readiness_report_generates_offline_gate_artifacts(tmp_path):
     assert "DT35 field model overlay" in overlay_svg
     assert "usable wall" in overlay_svg
     assert "ignored interference" in overlay_svg
-    assert "solid obstacle blocks laser" in overlay_svg
+    assert "ramp / special changing wall" in overlay_svg
     assert "sensor_1" in overlay_svg
     assert "sensor_2" in overlay_svg
     assert "Objective Coverage" in Path(report.artifacts.objective_coverage_md).read_text(encoding="utf-8")

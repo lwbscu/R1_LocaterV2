@@ -27,7 +27,7 @@ def test_dt35_role_svg_contains_yaw_panels_and_target_classes(tmp_path):
     assert "red_forest_obstacle" in svg
     assert "red_left_ramp_zone_450h" in svg
     assert "ignore/noisy" in svg
-    assert "green stroke=forest/ramp" in svg
+    assert "green stroke=ramp/special wall" in svg
 
     out = tmp_path / "roles.svg"
     write_dt35_role_svg(out, rows, config)

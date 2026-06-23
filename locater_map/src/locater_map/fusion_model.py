@@ -104,7 +104,7 @@ class LiveFusionFilter:
             base_x = frame.lidar_x_cm if lidar_valid else frame.pos_x_cm
             base_y = frame.lidar_y_cm if lidar_valid else frame.pos_y_cm
             h30_yaw_valid = frame.h30_valid or frame.h30_has_attitude
-            base_yaw = frame.h30_yaw_deg if h30_yaw_valid else frame.lidar_yaw_deg if lidar_valid else frame.pos_yaw_deg
+            base_yaw = frame.lidar_yaw_deg if lidar_valid else frame.h30_yaw_deg if h30_yaw_valid else frame.pos_yaw_deg
             self.anchor = _Anchor(base_x, base_y, base_yaw, frame.encoder_x_cm, frame.encoder_y_cm, frame.h30_yaw_deg)
 
         pred_x = self.anchor.x_cm + (frame.encoder_x_cm - self.anchor.encoder_x_cm) * self.encoder_scale.x
@@ -118,7 +118,7 @@ class LiveFusionFilter:
             self.encoder_scale = _learn_encoder_scale(self.encoder_scale, self.anchor, frame, self.cfg)
             fused_x = pred_x + (frame.lidar_x_cm - pred_x) * lidar_gain
             fused_y = pred_y + (frame.lidar_y_cm - pred_y) * lidar_gain
-            fused_yaw = pred_yaw if frame.h30_valid or frame.h30_has_attitude else angle_lerp_deg(pred_yaw, frame.lidar_yaw_deg, lidar_gain)
+            fused_yaw = angle_lerp_deg(pred_yaw, frame.lidar_yaw_deg, lidar_gain)
             self.anchor = _Anchor(fused_x, fused_y, fused_yaw, frame.encoder_x_cm, frame.encoder_y_cm, frame.h30_yaw_deg)
         else:
             fused_x, fused_y, fused_yaw = pred_x, pred_y, pred_yaw
@@ -206,7 +206,7 @@ def simulate_fusion(
             base_x = frame.lidar_x_cm if lidar_valid else frame.pos_x_cm
             base_y = frame.lidar_y_cm if lidar_valid else frame.pos_y_cm
             h30_yaw_valid = frame.h30_valid or frame.h30_has_attitude
-            base_yaw = frame.h30_yaw_deg if h30_yaw_valid else frame.lidar_yaw_deg if lidar_valid else frame.pos_yaw_deg
+            base_yaw = frame.lidar_yaw_deg if lidar_valid else frame.h30_yaw_deg if h30_yaw_valid else frame.pos_yaw_deg
             anchor = _Anchor(base_x, base_y, base_yaw, frame.encoder_x_cm, frame.encoder_y_cm, frame.h30_yaw_deg)
 
         pred_x = anchor.x_cm + (frame.encoder_x_cm - anchor.encoder_x_cm) * encoder_scale.x
@@ -221,7 +221,7 @@ def simulate_fusion(
             encoder_scale = _learn_encoder_scale(encoder_scale, anchor, frame, cfg)
             fused_x = pred_x + (frame.lidar_x_cm - pred_x) * lidar_gain
             fused_y = pred_y + (frame.lidar_y_cm - pred_y) * lidar_gain
-            fused_yaw = pred_yaw if frame.h30_valid or frame.h30_has_attitude else angle_lerp_deg(pred_yaw, frame.lidar_yaw_deg, lidar_gain)
+            fused_yaw = angle_lerp_deg(pred_yaw, frame.lidar_yaw_deg, lidar_gain)
             anchor = _Anchor(fused_x, fused_y, fused_yaw, frame.encoder_x_cm, frame.encoder_y_cm, frame.h30_yaw_deg)
         else:
             fused_x, fused_y, fused_yaw = pred_x, pred_y, pred_yaw
@@ -481,6 +481,8 @@ def _dt35_observations(
         ray = dt35_ray(field_x, field_y, field_yaw, sensor_cfg, distance_mm, field_model)
         if not bool(ray.get("correction_allowed", False)):
             continue
+        if bool(ray.get("floor_hit_suspect", False)):
+            continue
         residual = float(ray["residual_cm"])
         if not isfinite(residual) or abs(residual) > residual_gate_cm:
             continue
@@ -515,6 +517,8 @@ def _dt35_single_residual(
     field_x, field_y, field_yaw = _local_pose_to_field(x_cm, y_cm, yaw_deg, start_tf)
     ray = dt35_ray(field_x, field_y, field_yaw, dt35_cfg.get(key, {}), distance_mm, field_model)
     if not bool(ray.get("correction_allowed", False)):
+        return None
+    if bool(ray.get("floor_hit_suspect", False)):
         return None
     residual = float(ray["residual_cm"])
     if not isfinite(residual) or abs(residual) > residual_gate_cm:

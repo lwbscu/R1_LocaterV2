@@ -62,12 +62,14 @@ def test_dt35_horizontal_ray_marks_thick_top_pole_rack_as_ignore():
     assert left_ray.usable_for_correction is False
 
 
-def test_dt35_hit_table_marks_forest_as_correctable_obstacle():
-    rows = analyze_dt35_hits(_default_config(), [PoseSpec(-550.0, 50.0, 0.0, "forest")])
+def test_dt35_hit_table_marks_forest_as_correctable_wall():
+    config = _default_config()
+    config["field_model"]["infer_missing_targets"] = False
+    rows = analyze_dt35_hits(config, [PoseSpec(-550.0, 50.0, 0.0, "forest")])
     targets = {row.expected_target: row for row in rows}
 
     forest = targets["red_forest_obstacle_left"]
-    assert forest.expected_target_type == "solid_obstacle"
+    assert forest.expected_target_type == "usable_wall"
     assert forest.correction_allowed is True
     assert forest.within_range is True
     assert forest.usable_for_correction is True
@@ -88,6 +90,7 @@ def test_dt35_hit_table_marks_ramp_as_correctable_obstacle():
 
 def test_dt35_targets_change_with_h30_yaw_direction():
     config = _default_config()
+    config["field_model"]["infer_missing_targets"] = False
     north_rows = analyze_dt35_hits(config, [PoseSpec(0.0, 0.0, 0.0, "north")])
     east_rows = analyze_dt35_hits(config, [PoseSpec(0.0, 0.0, 90.0, "east")])
     west_rows = analyze_dt35_hits(config, [PoseSpec(0.0, 0.0, -90.0, "west")])
@@ -96,16 +99,17 @@ def test_dt35_targets_change_with_h30_yaw_direction():
     east = {row.sensor_key: row for row in east_rows}
     west = {row.sensor_key: row for row in west_rows}
 
-    assert north["sensor_1"].expected_target == "center_divider_wall"
-    assert north["sensor_2"].expected_target == "center_divider_wall"
-    assert east["sensor_1"].expected_target == "upper_red_r1_r2_wall"
+    assert north["sensor_1"].expected_target == "red_forest_obstacle_right"
+    assert north["sensor_2"].expected_target == "blue_forest_obstacle_left"
+    assert east["sensor_1"].expected_target == "top_center_end_rack_wall_bottom"
     assert east["sensor_2"].expected_target == "lower_used_weapon_wall"
     assert west["sensor_1"].expected_target == "lower_used_weapon_wall"
-    assert west["sensor_2"].expected_target == "upper_blue_r1_r2_wall"
+    assert west["sensor_2"].expected_target == "top_center_end_rack_wall_bottom"
     assert north["sensor_1"].constraint_axis == "x"
     assert east["sensor_1"].constraint_axis == "y"
     assert west["sensor_1"].constraint_axis == "y"
     assert round(north["sensor_1"].ray_dx, 3) == -1.0
+    assert round(north["sensor_2"].ray_dx, 3) == 1.0
     assert round(east["sensor_1"].ray_dy, 3) == 1.0
 
 
@@ -131,8 +135,33 @@ def test_dt35_ramp_uses_top_view_square_not_side_view_length():
     assert targets["sensor_2"].expected_target != "red_left_ramp_zone_450h_right"
 
 
-def test_default_display_policy_keeps_online_lidar_absolute():
+def test_default_display_policy_maps_online_lidar_to_red_start():
     config = _default_config()
+    frame = RobotFrame(
+        pos_x_cm=0.1,
+        pos_y_cm=-0.2,
+        pos_yaw_deg=0.52,
+        lidar_x_cm=0.1,
+        lidar_y_cm=-0.2,
+        lidar_yaw_deg=0.52,
+        lidar_valid=True,
+        lidar_online=True,
+    )
+
+    display = apply_display_policy(config, frame)
+    red_start = config["robot"]["start_pose_red"]
+
+    assert round(display.pos_x_cm, 3) == round(red_start["x_cm"] + frame.pos_x_cm, 3)
+    assert round(display.pos_y_cm, 3) == round(red_start["y_cm"] + frame.pos_y_cm, 3)
+    assert round(display.pos_yaw_deg, 3) == round(red_start["yaw_deg"] + frame.pos_yaw_deg, 3)
+    assert round(display.lidar_x_cm, 3) == round(red_start["x_cm"] + frame.lidar_x_cm, 3)
+    assert round(display.lidar_y_cm, 3) == round(red_start["y_cm"] + frame.lidar_y_cm, 3)
+    assert round(display.lidar_yaw_deg, 3) == round(red_start["yaw_deg"] + frame.lidar_yaw_deg, 3)
+
+
+def test_auto_lidar_offline_policy_keeps_online_lidar_absolute():
+    config = _default_config()
+    config["robot"]["start_pose_policy"] = "auto_lidar_offline"
     frame = RobotFrame(
         pos_x_cm=236.4,
         pos_y_cm=1.58,
@@ -167,7 +196,9 @@ def test_default_display_policy_offsets_local_pose_when_lidar_offline():
 
 
 def test_dt35_hit_table_marks_out_of_range_as_not_usable():
-    rows = analyze_dt35_hits(_default_config(), [PoseSpec(-400.0, -420.0, 0.0, "ramp")])
+    config = _default_config()
+    config["dt35"]["sensor_2"]["max_range_cm"] = 250.0
+    rows = analyze_dt35_hits(config, [PoseSpec(-400.0, -420.0, 0.0, "ramp")])
     targets = {row.sensor_key: row for row in rows}
 
     far_wall = targets["sensor_2"]
@@ -179,10 +210,11 @@ def test_dt35_hit_table_marks_out_of_range_as_not_usable():
 
 def test_dt35_manual_feature_matrix_matches_expected_target_classes():
     config = _default_config()
+    config["field_model"]["infer_missing_targets"] = False
     rows = analyze_dt35_hits(
         config,
         [
-            PoseSpec(-230.0, 330.0, 90.0, "red_upper_wall"),
+            PoseSpec(-552.5, 520.0, 90.0, "red_start_top_wall"),
             PoseSpec(-360.0, 520.0, 90.0, "top_long_pole_ignore"),
             PoseSpec(-550.0, 50.0, 0.0, "red_forest_left_face"),
             PoseSpec(-70.0, 50.0, 0.0, "red_forest_right_face"),
@@ -194,12 +226,20 @@ def test_dt35_manual_feature_matrix_matches_expected_target_classes():
     for row in rows:
         by_pose.setdefault(row.pose_label, []).append(row)
 
-    assert _has_target(by_pose["red_upper_wall"], "upper_red_r1_r2_wall", "usable_wall", True)
+    red_start_targets = {row.sensor_key: row for row in by_pose["red_start_top_wall"]}
+    assert red_start_targets["sensor_1"].expected_target == "field_top"
+    assert red_start_targets["sensor_1"].expected_target_type == "usable_wall"
+    assert red_start_targets["sensor_1"].usable_for_correction is True
+    assert red_start_targets["sensor_2"].expected_target == "red_left_ramp_zone_450h_top"
+    assert red_start_targets["sensor_2"].expected_target_type == "solid_obstacle"
+    assert red_start_targets["sensor_2"].usable_for_correction is True
     assert _has_target(by_pose["top_long_pole_ignore"], "top_red_long_pole", "ignore", False)
-    assert _has_target(by_pose["red_forest_left_face"], "red_forest_obstacle_left", "solid_obstacle", True)
-    assert _has_target(by_pose["red_forest_right_face"], "red_forest_obstacle_right", "solid_obstacle", True)
+    assert _has_target(by_pose["red_forest_left_face"], "red_forest_obstacle_left", "usable_wall", True)
+    assert _has_target(by_pose["red_forest_right_face"], "red_forest_obstacle_right", "usable_wall", True)
     assert _has_target(by_pose["red_ramp_face"], "red_left_ramp_zone_450h_right", "solid_obstacle", True)
-    assert _has_target(by_pose["center_divider"], "center_divider_wall", "usable_wall", True)
+    center_divider_targets = {row.sensor_key: row for row in by_pose["center_divider"]}
+    assert center_divider_targets["sensor_1"].expected_target == "red_forest_obstacle_right"
+    assert center_divider_targets["sensor_2"].expected_target == "blue_forest_obstacle_left"
 
 
 def test_dt35_lidar_reference_samples_have_interpretable_targets():
@@ -217,11 +257,11 @@ def test_dt35_lidar_reference_samples_have_interpretable_targets():
     for row in rows:
         by_pose.setdefault(row.pose_label, {})[row.sensor_key] = row
 
-    assert by_pose["lidar_origin_sample"]["sensor_1"].expected_target == "center_divider_wall"
-    assert by_pose["lidar_origin_sample"]["sensor_2"].expected_target == "center_divider_wall"
+    assert by_pose["lidar_origin_sample"]["sensor_1"].expected_target == "red_forest_obstacle_right"
+    assert by_pose["lidar_origin_sample"]["sensor_2"].expected_target == "blue_forest_obstacle_left"
     assert by_pose["lidar_origin_sample"]["sensor_1"].usable_for_correction is True
-    assert by_pose["lidar_bottom_corridor_sample"]["sensor_1"].expected_target == "center_divider_wall"
-    assert by_pose["lidar_bottom_corridor_sample"]["sensor_2"].expected_target == "center_divider_wall"
+    assert by_pose["lidar_bottom_corridor_sample"]["sensor_1"].expected_target == "red_forest_obstacle_right"
+    assert by_pose["lidar_bottom_corridor_sample"]["sensor_2"].expected_target == "blue_forest_obstacle_left"
     assert by_pose["lidar_forest_side_sample"]["sensor_1"].expected_target.startswith("blue_forest_obstacle")
     assert by_pose["lidar_forest_side_sample"]["sensor_1"].usable_for_correction is True
     assert by_pose["lidar_rotated_sample"]["sensor_1"].expected_target.startswith("blue_forest_obstacle")
@@ -335,6 +375,8 @@ def test_dt35_corner_hit_is_not_used_for_correction():
 
 def test_dt35_frame_residuals_are_small_for_synthetic_truth():
     config = _default_config()
+    config["dt35"]["sensor_1"]["distance_bias_mm"] = 0.0
+    config["dt35"]["sensor_2"]["distance_bias_mm"] = 0.0
     frames = generate_synthetic_frames(config, SyntheticConfig(samples=20, path_name="center_divider"))
     rows = analyze_dt35_frames(config, frames, pose_source="lidar", yaw_source="h30", start_policy="off")
     summary = summarize_residuals(rows)
@@ -345,12 +387,56 @@ def test_dt35_frame_residuals_are_small_for_synthetic_truth():
     assert summary.rms_residual_cm < 1.0e-6
 
 
-def test_dt35_residual_gate_separates_geometry_from_fusion_use():
+def test_dt35_positive_residual_gate_separates_geometry_from_fusion_use():
     config = {
         "map": {"field_width_cm": 200.0, "field_height_cm": 200.0},
         "robot": {"start_pose_policy": "off"},
         "display": {"live_fusion_dt35_residual_gate_cm": 40.0},
         "field_model": {"enabled": True, "use_field_boundary": True, "field_width_cm": 200.0, "field_height_cm": 200.0},
+        "dt35": {
+            "sensor_1": {"enabled": True, "offset_x_cm": 0.0, "offset_y_cm": 0.0, "yaw_offset_deg": -90.0, "max_range_cm": 250.0},
+            "sensor_2": {"enabled": False},
+        },
+    }
+    frame = RobotFrame(
+        seq=1,
+        lidar_valid=True,
+        lidar_x_cm=0.0,
+        lidar_y_cm=0.0,
+        h30_valid=True,
+        h30_yaw_deg=0.0,
+        dt35_1_valid=True,
+        dt35_1_mm=1500.0,
+    )
+
+    rows = analyze_dt35_frames(config, [frame], pose_source="lidar", yaw_source="h30", start_policy="off")
+    sensor_1 = [row for row in rows if row.sensor_key == "sensor_1"][0]
+    summary = summarize_residuals(rows)
+
+    assert sensor_1.expected_target == "field_left"
+    assert sensor_1.usable_for_correction is True
+    assert sensor_1.residual_within_gate is False
+    assert sensor_1.floor_hit_suspect is False
+    assert sensor_1.usable_for_fusion is False
+    assert summary.usable_rays == 1
+    assert summary.fusion_usable_rays == 0
+    assert summary.residual_gate_rejected_rays == 1
+    assert summary.floor_hit_suspect_rays == 0
+    assert summary.rms_residual_cm is None
+
+
+def test_dt35_negative_residual_marks_floor_or_near_hit_suspect():
+    config = {
+        "map": {"field_width_cm": 200.0, "field_height_cm": 200.0},
+        "robot": {"start_pose_policy": "off"},
+        "display": {"live_fusion_dt35_residual_gate_cm": 40.0},
+        "field_model": {
+            "enabled": True,
+            "use_field_boundary": True,
+            "field_width_cm": 200.0,
+            "field_height_cm": 200.0,
+            "floor_hit_negative_residual_gate_cm": 12.0,
+        },
         "dt35": {
             "sensor_1": {"enabled": True, "offset_x_cm": 0.0, "offset_y_cm": 0.0, "yaw_offset_deg": -90.0, "max_range_cm": 250.0},
             "sensor_2": {"enabled": False},
@@ -372,13 +458,13 @@ def test_dt35_residual_gate_separates_geometry_from_fusion_use():
     summary = summarize_residuals(rows)
 
     assert sensor_1.expected_target == "field_left"
-    assert sensor_1.usable_for_correction is True
-    assert sensor_1.residual_within_gate is False
+    assert sensor_1.floor_hit_suspect is True
+    assert sensor_1.usable_for_correction is False
     assert sensor_1.usable_for_fusion is False
-    assert summary.usable_rays == 1
+    assert summary.usable_rays == 0
     assert summary.fusion_usable_rays == 0
-    assert summary.residual_gate_rejected_rays == 1
-    assert summary.rms_residual_cm is None
+    assert summary.residual_gate_rejected_rays == 0
+    assert summary.floor_hit_suspect_rays == 1
 
 
 def _has_target(rows, target_prefix: str, target_type: str, usable: bool) -> bool:

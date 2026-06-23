@@ -67,6 +67,7 @@ class SerialWorker(QObject):
         self._window_start = monotonic()
         self._window_bytes = 0
         self._window_frames = 0
+        self._discard_startup_lines = 2
 
     @Slot()
     def start(self) -> None:
@@ -77,6 +78,10 @@ class SerialWorker(QObject):
         self._running = True
         try:
             self._ser = serial.Serial(self.port, self.baudrate, timeout=0.05)
+            try:
+                self._ser.reset_input_buffer()
+            except Exception:
+                pass
             self._stats.connected = True
             self.event.emit(f"opened {self.port} @ {self.baudrate}")
             buffer = bytearray()
@@ -120,6 +125,10 @@ class SerialWorker(QObject):
 
     def _handle_line(self, line: str) -> None:
         if not line:
+            return
+        if self._discard_startup_lines > 0:
+            self._discard_startup_lines -= 1
+            self.event.emit(f"discarded startup serial line: {line[:80]}")
             return
         self.raw_received.emit(line)
         result = parse_line(

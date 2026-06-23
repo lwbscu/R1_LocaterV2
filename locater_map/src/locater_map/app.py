@@ -17,6 +17,10 @@ def run_app(
     duration_s: float | None = None,
     screenshot_path: str | None = None,
     capture_on_start: bool = False,
+    record_video_path: str | None = None,
+    record_gif_path: str | None = None,
+    record_fps: float = 10.0,
+    replay_speed: float | None = None,
 ) -> int:
     config = load_config(config_path)
     app = QApplication(sys.argv)
@@ -30,6 +34,10 @@ def run_app(
         duration_s=duration_s,
         screenshot_path=screenshot_path,
         capture_on_start=capture_on_start,
+        record_video_path=record_video_path,
+        record_gif_path=record_gif_path,
+        record_fps=record_fps,
+        replay_speed=replay_speed,
     )
     window.show()
     return app.exec()

@@ -85,6 +85,9 @@ def main() -> int:
     parser.add_argument("--dt35-advice-output", default=None, help="Optional CSV path for DT35 target calibration advice")
     parser.add_argument("--dt35-advice-summary", default=None, help="Optional JSON path for DT35 target calibration advice summary")
     parser.add_argument("--dt35-advice-md", default=None, help="Optional Markdown path for DT35 target calibration advice")
+    parser.add_argument("--dt35-range-bias-output", default=None, help="Optional JSON path for DT35 per-sensor distance-bias estimate")
+    parser.add_argument("--dt35-range-bias-md", default=None, help="Optional Markdown path for DT35 per-sensor distance-bias estimate")
+    parser.add_argument("--dt35-range-bias-min-frames", type=int, default=5, help="Minimum usable frames per DT35 for range-bias estimate")
     parser.add_argument("--dt35-pose-source", default="lidar", choices=("lidar", "pos", "encoder", "calib"), help="XY pose source for DT35 residual analysis")
     parser.add_argument("--dt35-yaw-source", default="h30", choices=("h30", "lidar", "pos", "encoder", "calib"), help="Yaw source for DT35 residual analysis")
     parser.add_argument("--dt35-start-side", default=None, choices=("red", "blue", "none"), help="Override start side for DT35 analysis")
@@ -94,6 +97,14 @@ def main() -> int:
     parser.add_argument("--field-model-audit", default=None, help="Export a JSON audit of map size, DT35 field geometry, hit coverage, and missing real evidence")
     parser.add_argument("--field-model-audit-poses", default=None, help="Optional semicolon-separated x,y,yaw[,label] poses for the field model audit")
     parser.add_argument("--synthetic-fusion", action="store_true", help="Generate synthetic sensor frames and run fusion")
+    parser.add_argument("--synthetic-left-forest-loop", action="store_true", help="Generate a 10Hz left-forest loop validation package with DT35 ray screenshots")
+    parser.add_argument("--synthetic-left-forest-output-dir", default=None, help="Output directory for --synthetic-left-forest-loop")
+    parser.add_argument("--synthetic-left-forest-duration-s", type=float, default=60.0, help="Duration in seconds for --synthetic-left-forest-loop")
+    parser.add_argument("--synthetic-left-forest-hz", type=float, default=10.0, help="Frame rate for --synthetic-left-forest-loop")
+    parser.add_argument("--synthetic-left-forest-screenshot-hz", type=float, default=1.0, help="Map screenshot rate for --synthetic-left-forest-loop")
+    parser.add_argument("--synthetic-left-forest-stage", default="ideal", choices=("ideal", "pid", "async_occlusion", "lidar_noise"), help="Synthetic left forest scenario stage")
+    parser.add_argument("--synthetic-left-forest-all-stages", action="store_true", help="Generate ideal/pid/async_occlusion/lidar_noise left forest packages")
+    parser.add_argument("--synthetic-left-forest-no-png", action="store_true", help="Only write SVG screenshots for --synthetic-left-forest-loop")
     parser.add_argument("--synthetic-suite", action="store_true", help="Run a synthetic fusion sweep across paths and DT35 gains")
     parser.add_argument("--synthetic-benchmark", action="store_true", help="Run the default DT35/H30/lidar fusion benchmark over key field paths")
     parser.add_argument("--synthetic-benchmark-output", default=None, help="CSV output path for --synthetic-benchmark")
@@ -125,12 +136,80 @@ def main() -> int:
     parser.add_argument("--fusion-dt35-correct-lidar-frames", action="store_true", help="Allow DT35 to correct frames that already used a lidar anchor")
     parser.add_argument("--fusion-output", default=None, help="Output CSV path for --simulate-fusion")
     parser.add_argument("--replay", default=None, help="Replay parsed_frames.csv")
+    parser.add_argument("--replay-speed", type=float, default=None, help="Replay speed multiplier, e.g. 0.5 for 10Hz CSV at real time")
     parser.add_argument("--serial-port", default=None, help="Open this COM port on startup")
     parser.add_argument("--baudrate", type=int, default=None, help="Override serial baudrate")
     parser.add_argument("--duration-s", type=float, default=None, help="Auto-close after N seconds")
     parser.add_argument("--screenshot", default=None, help="Save a screenshot before auto-close")
     parser.add_argument("--capture", action="store_true", help="Start GUI capture automatically and save it on timed close")
+    parser.add_argument("--record-video", default=None, help="Record the full GUI window to an MP4 file during the timed run")
+    parser.add_argument("--record-gif", default=None, help="Record the full GUI window to an animated GIF during the timed run")
+    parser.add_argument("--record-fps", type=float, default=10.0, help="Full-window recording frame rate")
+    parser.add_argument("--dt35-mount-hypothesis", nargs="+", default=None, help="Compare DT35 mounting hypotheses against one or more RL_data logs")
+    parser.add_argument("--dt35-mount-hypothesis-output-dir", default=None, help="Output directory for --dt35-mount-hypothesis artifacts")
+    parser.add_argument("--dt35-mount-start-side", default="red", choices=("red", "blue"), help="Start side for DT35 mount hypothesis analysis")
+    parser.add_argument(
+        "--dt35-mount-start-policy",
+        default="always_local_display",
+        choices=("auto_lidar_offline", "always_local_display", "off"),
+        help="Start pose policy for DT35 mount hypothesis analysis",
+    )
+    parser.add_argument("--rl-data-analysis", nargs="+", default=None, help="Analyze one or more RL_data log directories or raw_frames.csv files")
+    parser.add_argument("--rl-data-analysis-output-dir", default=None, help="Output directory for --rl-data-analysis artifacts")
+    parser.add_argument("--rl-data-analysis-start-side", default="red", choices=("red", "blue"), help="Start side for RL_data field mapping")
+    parser.add_argument(
+        "--rl-data-analysis-start-policy",
+        default="always_local_display",
+        choices=("auto_lidar_offline", "always_local_display", "off"),
+        help="Start pose policy for RL_data field mapping",
+    )
     args = parser.parse_args()
+
+    if args.dt35_mount_hypothesis:
+        from locater_map.config_loader import load_config
+        from locater_map.dt35_mount_hypothesis import analyze_dt35_mount_hypotheses
+
+        config = load_config(args.config)
+        report = analyze_dt35_mount_hypotheses(
+            config,
+            args.dt35_mount_hypothesis,
+            output_dir=args.dt35_mount_hypothesis_output_dir,
+            start_side=str(args.dt35_mount_start_side),
+            start_policy=str(args.dt35_mount_start_policy),
+        )
+        best = report.scores[0] if report.scores else None
+        print(f"output_dir={report.output_dir}")
+        print(f"recommended_variant={report.recommended_variant}")
+        if best:
+            print(
+                f"best_fusion_usable_rays={best.fusion_usable_rays} "
+                f"best_floor_hit_suspect_rays={best.floor_hit_suspect_rays} "
+                f"best_rms_residual_cm={best.rms_residual_cm}"
+            )
+        print(f"report={Path(report.output_dir) / 'dt35_mount_hypothesis.md'}")
+        return 0
+
+    if args.rl_data_analysis:
+        from locater_map.config_loader import load_config
+        from locater_map.rl_data_analysis import analyze_rl_logs
+
+        config = load_config(args.config)
+        report = analyze_rl_logs(
+            config,
+            args.rl_data_analysis,
+            output_dir=args.rl_data_analysis_output_dir,
+            start_side=str(args.rl_data_analysis_start_side),
+            start_policy=str(args.rl_data_analysis_start_policy),
+        )
+        print(f"output_dir={report.output_dir}")
+        print(
+            f"logs={report.aggregate.get('logs')} frames={report.aggregate.get('frames')} "
+            f"dt35_valid_rays={report.aggregate.get('dt35_valid_rays')} "
+            f"dt35_fusion_usable_rays={report.aggregate.get('dt35_fusion_usable_rays')} "
+            f"dt35_floor_hit_suspect_rays={report.aggregate.get('dt35_floor_hit_suspect_rays')}"
+        )
+        print(f"report={Path(report.output_dir) / 'rl_data_analysis.md'}")
+        return 0
 
     if args.field_model_svg:
         from locater_map.config_loader import load_config
@@ -391,6 +470,12 @@ def main() -> int:
             write_calibration_advice_markdown,
             write_calibration_advice_summary,
         )
+        from locater_map.dt35_range_calibrator import (
+            build_range_bias_markdown,
+            estimate_dt35_range_bias,
+            write_range_bias_json,
+            write_range_bias_markdown,
+        )
         from locater_map.fusion_model import load_frames_csv
 
         config = load_config(args.config)
@@ -429,6 +514,23 @@ def main() -> int:
         if advice_md_output:
             write_calibration_advice_markdown(advice_md_output, advice, advice_summary)
             print(f"advice_markdown={advice_md_output}")
+        if args.dt35_range_bias_output or args.dt35_range_bias_md:
+            range_estimates, range_summary = estimate_dt35_range_bias(
+                config,
+                frames,
+                pose_source=str(args.dt35_pose_source),
+                yaw_source=str(args.dt35_yaw_source),
+                start_side=start_side,
+                start_policy=args.dt35_start_policy,
+                min_frames=max(1, int(args.dt35_range_bias_min_frames)),
+            )
+            if args.dt35_range_bias_output:
+                write_range_bias_json(args.dt35_range_bias_output, range_estimates, range_summary)
+                print(f"range_bias={args.dt35_range_bias_output}")
+            if args.dt35_range_bias_md:
+                write_range_bias_markdown(args.dt35_range_bias_md, range_estimates, range_summary)
+                print(f"range_bias_markdown={args.dt35_range_bias_md}")
+            print(build_range_bias_markdown(range_estimates, range_summary))
         print_residual_summary(summary)
         print(
             f"advice_targets={advice_summary.targets} actionable={advice_summary.actionable_targets} "
@@ -684,6 +786,7 @@ def main() -> int:
 
     if (
         args.synthetic_fusion
+        or args.synthetic_left_forest_loop
         or args.synthetic_suite
         or args.synthetic_benchmark
         or args.synthetic_obstacle_ablation
@@ -715,6 +818,39 @@ def main() -> int:
 
         config = load_config(args.config)
         root = Path(config.get("_project_root", Path(__file__).resolve().parent))
+        if args.synthetic_left_forest_loop:
+            from locater_map.left_forest_loop_experiment import LEFT_FOREST_STAGES, run_left_forest_loop_experiment
+
+            stages = list(LEFT_FOREST_STAGES) if args.synthetic_left_forest_all_stages else [str(args.synthetic_left_forest_stage)]
+            suite_dir: Path | None = None
+            if args.synthetic_left_forest_all_stages:
+                suite_dir = Path(args.synthetic_left_forest_output_dir) if args.synthetic_left_forest_output_dir else root / "logs" / "RL_data" / f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_sim_left_forest_suite"
+                suite_dir.mkdir(parents=True, exist_ok=True)
+                print(f"suite_dir={suite_dir}")
+            for stage in stages:
+                out_dir = (suite_dir / f"{stage}_log") if suite_dir else args.synthetic_left_forest_output_dir
+                result = run_left_forest_loop_experiment(
+                    config,
+                    output_dir=out_dir,
+                    duration_s=float(args.synthetic_left_forest_duration_s),
+                    hz=float(args.synthetic_left_forest_hz),
+                    screenshot_hz=float(args.synthetic_left_forest_screenshot_hz),
+                    stage=stage,
+                    encoder_x_scale=float(args.synthetic_encoder_x_scale),
+                    encoder_y_scale=float(args.synthetic_encoder_y_scale),
+                    encoder_yaw_scale=float(args.synthetic_encoder_yaw_scale),
+                    h30_yaw_bias_deg=float(args.synthetic_h30_yaw_bias),
+                    dt35_noise_mm=float(args.synthetic_dt35_noise_mm),
+                    render_png=not bool(args.synthetic_left_forest_no_png),
+                )
+                print(f"stage={result.stage}")
+                print(f"output_dir={result.output_dir}")
+                print(f"frames={result.frames} hz={result.hz} screenshots={result.screenshot_count}")
+                print(f"report={result.report_md}")
+                print(f"overview={result.overview_png}")
+                print(f"raw_serial={result.raw_serial_log}")
+            return 0
+
         if args.synthetic_benchmark:
             paths = [item.strip() for item in str(args.synthetic_suite_paths).split(",") if item.strip()] or list(DEFAULT_BENCHMARK_PATHS)
             fusion_cfg = FusionConfig(
@@ -985,6 +1121,10 @@ def main() -> int:
         duration_s=args.duration_s,
         screenshot_path=args.screenshot,
         capture_on_start=bool(args.capture),
+        record_video_path=args.record_video,
+        record_gif_path=args.record_gif,
+        record_fps=float(args.record_fps),
+        replay_speed=args.replay_speed,
     )
 
 

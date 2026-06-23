@@ -327,7 +327,7 @@ def build_objective_coverage(checks: dict[str, bool], has_real_log: bool) -> lis
         ),
         _coverage_item(
             "forest_and_ramp_are_dt35_blockers",
-            "Forest and ramp zones block DT35 rays and are allowed to correct translation with lower confidence than flat walls.",
+            "Forest grid edges are modeled as red usable walls; ramp zones are green special walls. Both block DT35 rays and may correct translation after gating.",
             ["field_model_overlay.svg", "dt35_field_sweep.json", "obstacle_ablation.json"],
             checks["forest_constraints_present"]
             and checks["ramp_constraints_present"]
@@ -558,7 +558,7 @@ def _next_actions(checks: dict[str, bool], real_csv: str | Path | None) -> list[
     if not checks.get("field_model_self_check", False):
         actions.append("Fix field model self-check failures in field_model_audit.json.")
     if not checks.get("forest_constraints_present", False) or not checks.get("ramp_constraints_present", False):
-        actions.append("Adjust forest/ramp modeled rectangles so DT35 rays can hit them as solid obstacles.")
+        actions.append("Adjust forest/ramp modeled rectangles so DT35 rays can hit forest red walls and ramp green special walls.")
     if not checks.get("ignored_interference_modeled_but_not_corrected", False):
         actions.append("Ensure blue ignored-interference targets are modeled but never allowed to correct pose.")
     if not checks.get("observability_has_x_y_and_diagonal_rank1", False):
@@ -574,7 +574,7 @@ def _next_actions(checks: dict[str, bool], real_csv: str | Path | None) -> list[
     if not checks.get("synthetic_fused_better_than_raw", False):
         actions.append("Tune field model/fusion gates until synthetic fused XY improves over encoder/H30 prediction.")
     if not checks.get("forest_ramp_ablation_passed", False):
-        actions.append("Inspect obstacle_ablation.json; forest/ramp solid-obstacle correction should contribute without making fusion worse.")
+        actions.append("Inspect obstacle_ablation.json; forest wall and ramp special-wall correction should contribute without making fusion worse.")
     if not checks.get("forest_ramp_ablation_has_forest_and_ramp_rays", False):
         actions.append("Inspect obstacle_ablation.json; the simulated paths should include both forest and ramp DT35 fusion rays.")
     if real_csv is None:

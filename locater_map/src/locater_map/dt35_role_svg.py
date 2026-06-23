@@ -74,7 +74,7 @@ def build_dt35_role_svg(rows: list[DT35RoleRow], config: dict[str, Any], *, titl
         '<rect x="0" y="0" width="100%" height="100%" fill="#0b1118"/>',
         f'<text class="title" x="{gap:.0f}" y="34">{escape(title)}</text>',
         f'<text x="{gap:.0f}" y="58">poses={summary.poses} rays={summary.rows} usable={summary.usable_rows} forest={summary.usable_forest_rows} ramp={summary.usable_ramp_rows} ignored={summary.ignored_rows} out_of_range={summary.out_of_range_rows} corner={summary.corner_rows}</text>',
-        f'<text class="small" x="{gap:.0f}" y="78">Color shows risk/state; dot=sensor_1 right mount local -X, square=sensor_2 left mount local +X. Coordinates are field center cm, +X right, +Y up.</text>',
+        f'<text class="small" x="{gap:.0f}" y="78">Color shows risk/state; dot=sensor_1 left mount local -X left ray, square=sensor_2 right mount local +X right ray. Coordinates are field center cm, +X right, +Y up.</text>',
     ]
     for index, yaw in enumerate(yaws):
         col = index % cols
@@ -165,7 +165,7 @@ def _legend_svg(x: float, y: float) -> list[str]:
     ly += 24.0
     for label, color in (
         ("red stroke=usable wall", TARGET_MARKERS["usable_wall"]),
-        ("green stroke=forest/ramp", TARGET_MARKERS["solid_obstacle"]),
+        ("green stroke=ramp/special wall", TARGET_MARKERS["solid_obstacle"]),
         ("blue stroke=ignored area", TARGET_MARKERS["ignore"]),
     ):
         parts.append(f'<rect x="{lx - 5:.1f}" y="{ly - 5:.1f}" width="10" height="10" fill="none" stroke="{color}" stroke-width="2"/>')

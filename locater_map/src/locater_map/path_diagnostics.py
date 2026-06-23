@@ -71,6 +71,7 @@ class PathDiagnosticRow:
     dt35_1_fusion_allowed: bool
     dt35_1_residual_gate_cm: float
     dt35_1_residual_within_gate: bool
+    dt35_1_floor_hit_suspect: bool
     dt35_1_corner: bool
     dt35_2_valid: bool
     dt35_2_target: str
@@ -88,6 +89,7 @@ class PathDiagnosticRow:
     dt35_2_fusion_allowed: bool
     dt35_2_residual_gate_cm: float
     dt35_2_residual_within_gate: bool
+    dt35_2_floor_hit_suspect: bool
     dt35_2_corner: bool
 
     def to_dict(self) -> dict[str, Any]:
@@ -114,6 +116,7 @@ class PathDiagnosticSummary:
     dt35_allowed_frames: int
     dt35_fusion_allowed_frames: int
     dt35_residual_gate_rejected_frames: int
+    dt35_floor_hit_suspect_frames: int
     dt35_corner_frames: int
     dt35_rank_counts: dict[str, int]
     dt35_constraint_state_counts: dict[str, int]
@@ -240,6 +243,9 @@ def generate_path_diagnostic(
             if (row.dt35_1_allowed and not row.dt35_1_residual_within_gate)
             or (row.dt35_2_allowed and not row.dt35_2_residual_within_gate)
         ),
+        dt35_floor_hit_suspect_frames=sum(
+            1 for row in rows if row.dt35_1_floor_hit_suspect or row.dt35_2_floor_hit_suspect
+        ),
         dt35_corner_frames=sum(1 for row in rows if row.dt35_1_corner or row.dt35_2_corner),
         dt35_rank_counts=dict(sorted(Counter(str(row.dt35_translation_rank) for row in rows).items())),
         dt35_constraint_state_counts=dict(sorted(Counter(row.dt35_constraint_state for row in rows).items())),
@@ -294,6 +300,7 @@ def _sensor_fields(prefix: str, row: DT35FrameResidualRow | None) -> dict[str, A
             f"{prefix}_fusion_allowed": False,
             f"{prefix}_residual_gate_cm": float("nan"),
             f"{prefix}_residual_within_gate": False,
+            f"{prefix}_floor_hit_suspect": False,
             f"{prefix}_corner": False,
         }
     ray_dx, ray_dy = heading_vector_from_front_yaw(row.ray_yaw_deg)
@@ -314,6 +321,7 @@ def _sensor_fields(prefix: str, row: DT35FrameResidualRow | None) -> dict[str, A
         f"{prefix}_fusion_allowed": row.usable_for_fusion,
         f"{prefix}_residual_gate_cm": row.residual_gate_cm,
         f"{prefix}_residual_within_gate": row.residual_within_gate,
+        f"{prefix}_floor_hit_suspect": row.floor_hit_suspect,
         f"{prefix}_corner": row.corner_ambiguous,
     }
 

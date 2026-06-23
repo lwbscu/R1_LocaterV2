@@ -1,5 +1,6 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
+from base64 import b64encode
 import json
 from html import escape
 from pathlib import Path
@@ -15,6 +16,7 @@ TARGET_STYLES = {
     "ignore": ("#2d82ff", "#2d82ff", 0.18),
     "solid_obstacle": ("#52e35f", "#52e35f", 0.18),
     "blocker": ("#ff9f43", "#ff9f43", 0.16),
+    "start_zone": ("#ff3344", "#ff3344", 0.02),
 }
 
 
@@ -31,6 +33,8 @@ def build_field_model_svg(config: dict[str, Any], poses: list[PoseSpec] | tuple[
     prior = _prior_map_config(config)
     img_w = int(prior.get("image_width_px", round(field_w_cm * 2.0)))
     img_h = int(prior.get("image_height_px", round(field_h_cm * 2.0)))
+    legend_w = 660
+    canvas_w = img_w + legend_w
     px_per_cm_x = img_w / field_w_cm
     px_per_cm_y = img_h / field_h_cm
 
@@ -39,14 +43,15 @@ def build_field_model_svg(config: dict[str, Any], poses: list[PoseSpec] | tuple[
 
     background = resolve_resource(config, map_cfg.get("labeled_background_image") or map_cfg.get("background_image"))
     elements: list[str] = [
-        f'<svg xmlns="http://www.w3.org/2000/svg" width="{img_w}" height="{img_h}" viewBox="0 0 {img_w} {img_h}">',
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{canvas_w}" height="{img_h}" viewBox="0 0 {canvas_w} {img_h}">',
         "<title>R1 Locater DT35 field model overlay</title>",
         '<rect x="0" y="0" width="100%" height="100%" fill="#0b1118"/>',
     ]
     background_href = _relative_href(background, config)
     if background_href:
+        elements.append(f"<desc>background={escape(str(background))}</desc>")
         elements.append(f'<image href="{escape(background_href)}" x="0" y="0" width="{img_w}" height="{img_h}" opacity="0.82"/>')
-    elements.append(_legend())
+    elements.append(_legend(img_w + 24, 24))
     elements.append(f'<rect x="0" y="0" width="{img_w}" height="{img_h}" fill="none" stroke="#ffffff" stroke-width="4" opacity="0.85"/>')
     elements.extend(_field_segments_svg(config, world_to_pixel, px_per_cm_x, px_per_cm_y))
     for pose in (poses if poses is not None else DEFAULT_POSES):
@@ -63,6 +68,30 @@ def _field_segments_svg(
 ) -> list[str]:
     elements: list[str] = []
     model = config.get("field_model", {})
+    if bool(model.get("use_field_boundary", False)):
+        map_cfg = config.get("map", {})
+        field_w = float(model.get("field_width_cm", map_cfg.get("field_width_cm", 1215.0)))
+        field_h = float(model.get("field_height_cm", map_cfg.get("field_height_cm", 1210.0)))
+        x0 = -field_w * 0.5
+        x1 = field_w * 0.5
+        y0 = -field_h * 0.5
+        y1 = field_h * 0.5
+        boundary_segments = [
+            ("field_left", x0, y0, x0, y1),
+            ("field_right", x1, y0, x1, y1),
+            ("field_bottom", x0, y0, x1, y0),
+            ("field_top", x0, y1, x1, y1),
+        ]
+        stroke, _fill, _opacity = _style("usable_wall")
+        for name, ax, ay, bx, by in boundary_segments:
+            x_start, y_start = world_to_pixel(ax, ay)
+            x_end, y_end = world_to_pixel(bx, by)
+            title = escape(f"{name} [usable_wall]")
+            elements.append(
+                f'<line x1="{x_start:.2f}" y1="{y_start:.2f}" x2="{x_end:.2f}" y2="{y_end:.2f}" '
+                f'stroke="{stroke}" stroke-width="8" stroke-linecap="round"><title>{title}</title></line>'
+            )
+
     for item in model.get("segments", []):
         if not bool(item.get("enabled", True)):
             continue
@@ -92,6 +121,21 @@ def _field_segments_svg(
         elements.append(
             f'<rect x="{x:.2f}" y="{y:.2f}" width="{width * px_per_cm_x:.2f}" height="{height * px_per_cm_y:.2f}" '
             f'fill="{fill}" fill-opacity="{opacity}" stroke="{stroke}" stroke-width="8"{dash}><title>{title}</title></rect>'
+        )
+    for item in model.get("visual_rectangles", []):
+        if not bool(item.get("enabled", True)):
+            continue
+        target_type = str(item.get("target_type", "start_zone"))
+        stroke, fill, opacity = _style(target_type)
+        cx = float(item.get("center_x_cm", 0.0))
+        cy = float(item.get("center_y_cm", 0.0))
+        width = float(item.get("width_cm", 0.0))
+        height = float(item.get("height_cm", 0.0))
+        x, y = world_to_pixel(cx - width * 0.5, cy + height * 0.5)
+        title = escape(f"{item.get('name', 'visual_rectangle')} [{target_type}, visual only]")
+        elements.append(
+            f'<rect x="{x:.2f}" y="{y:.2f}" width="{width * px_per_cm_x:.2f}" height="{height * px_per_cm_y:.2f}" '
+            f'fill="{fill}" fill-opacity="{opacity}" stroke="{stroke}" stroke-width="6" stroke-dasharray="12 8"><title>{title}</title></rect>'
         )
     return elements
 
@@ -134,7 +178,8 @@ def _pose_rays(pose: PoseSpec, config: dict[str, Any], world_to_pixel: Callable[
             target_type = str(hit["target_type"])
             target_name = str(hit["name"])
             correction_allowed = bool(int(str(hit["correction_allowed"])))
-        stroke, _fill, _opacity = _style(target_type)
+        target_stroke, _fill, _opacity = _style(target_type)
+        ray_stroke = "#ffd24a" if key == "sensor_1" else "#29d4ff"
         dash = "" if correction_allowed else ' stroke-dasharray="10 8"'
         x1, y1 = world_to_pixel(sx, sy)
         x2, y2 = world_to_pixel(hit_x, hit_y)
@@ -142,10 +187,10 @@ def _pose_rays(pose: PoseSpec, config: dict[str, Any], world_to_pixel: Callable[
         title = escape(f"{label} {key} -> {target_name} [{target_type}], {distance:.1f}cm")
         items.append(
             f'<line x1="{x1:.2f}" y1="{y1:.2f}" x2="{x2:.2f}" y2="{y2:.2f}" '
-            f'stroke="{stroke}" stroke-width="3" opacity="0.85"{dash}><title>{title}</title></line>'
+            f'stroke="{ray_stroke}" stroke-width="3" opacity="0.88"{dash}><title>{title}</title></line>'
         )
-        items.append(f'<circle cx="{x1:.2f}" cy="{y1:.2f}" r="5" fill="#ffffff" stroke="{stroke}" stroke-width="2"><title>{title}</title></circle>')
-        items.append(f'<circle cx="{x2:.2f}" cy="{y2:.2f}" r="5" fill="{stroke}" opacity="0.9"><title>{title}</title></circle>')
+        items.append(f'<circle cx="{x1:.2f}" cy="{y1:.2f}" r="5" fill="#ffffff" stroke="{ray_stroke}" stroke-width="2"><title>{title}</title></circle>')
+        items.append(f'<circle cx="{x2:.2f}" cy="{y2:.2f}" r="5" fill="{target_stroke}" opacity="0.9"><title>{title}</title></circle>')
     return items
 
 
@@ -159,29 +204,33 @@ def _prior_map_config(config: dict[str, Any]) -> dict[str, Any]:
 def _relative_href(path: Path | None, config: dict[str, Any]) -> str:
     if not path:
         return ""
-    root = Path(config.get("_project_root", path.parent))
-    try:
-        return Path(path).resolve().relative_to(root.resolve()).as_posix()
-    except ValueError:
-        return Path(path).resolve().as_posix()
+    resolved = Path(path).resolve()
+    suffix = resolved.suffix.lower().lstrip(".") or "png"
+    mime = "jpeg" if suffix in {"jpg", "jpeg"} else suffix
+    payload = b64encode(resolved.read_bytes()).decode("ascii")
+    return f"data:image/{mime};base64,{payload}"
 
 
 def _style(target_type: str) -> tuple[str, str, float]:
     return TARGET_STYLES.get(target_type, ("#9ca3af", "#9ca3af", 0.12))
 
 
-def _legend() -> str:
-    return """
+def _legend(x: float, y: float) -> str:
+    return f"""
 <defs>
   <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="strokeWidth">
     <path d="M0,0 L8,4 L0,8 z" fill="#ffffff"/>
   </marker>
 </defs>
-<g transform="translate(24,24)" font-family="Segoe UI, Arial, sans-serif" font-size="26">
-  <rect x="0" y="0" width="600" height="178" rx="14" fill="#111827" opacity="0.78"/>
+<g transform="translate({x:.0f},{y:.0f})" font-family="Segoe UI, Arial, sans-serif" font-size="26">
+  <rect x="0" y="0" width="620" height="298" rx="14" fill="#111827" opacity="0.78"/>
   <text x="22" y="40" fill="#ffffff">DT35 field model overlay</text>
   <line x1="26" y1="72" x2="112" y2="72" stroke="#ff3344" stroke-width="8"/><text x="130" y="82" fill="#ffffff">usable wall</text>
   <line x1="26" y1="110" x2="112" y2="110" stroke="#2d82ff" stroke-width="8" stroke-dasharray="16 10"/><text x="130" y="120" fill="#ffffff">ignored interference</text>
-  <rect x="26" y="138" width="86" height="24" fill="#52e35f" fill-opacity="0.24" stroke="#52e35f" stroke-width="6"/><text x="130" y="162" fill="#ffffff">solid obstacle blocks laser</text>
+  <rect x="26" y="138" width="86" height="24" fill="#52e35f" fill-opacity="0.24" stroke="#52e35f" stroke-width="6"/><text x="130" y="162" fill="#ffffff">ramp / special changing wall</text>
+  <rect x="26" y="178" width="86" height="24" fill="#ff3344" fill-opacity="0.04" stroke="#ff3344" stroke-width="4" stroke-dasharray="12 8"/><text x="130" y="202" fill="#ffffff">start zone marker only</text>
+  <line x1="26" y1="232" x2="112" y2="232" stroke="#ffd24a" stroke-width="6"/><text x="130" y="242" fill="#ffffff">DT35-1 ray</text>
+  <line x1="26" y1="270" x2="112" y2="270" stroke="#29d4ff" stroke-width="6"/><text x="130" y="280" fill="#ffffff">DT35-2 ray</text>
 </g>
 """.strip()
+

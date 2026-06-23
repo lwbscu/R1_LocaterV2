@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import shutil
+import subprocess
 import threading
 from dataclasses import replace
 from math import cos, radians, sin
@@ -53,6 +55,10 @@ class MainWindow(QMainWindow):
         duration_s: float | None = None,
         screenshot_path: str | None = None,
         capture_on_start: bool = False,
+        record_video_path: str | None = None,
+        record_gif_path: str | None = None,
+        record_fps: float = 10.0,
+        replay_speed: float | None = None,
     ) -> None:
         super().__init__()
         self.config = config
@@ -78,7 +84,9 @@ class MainWindow(QMainWindow):
         self.demo_source = DemoSource()
         self.replay: ReplaySource | None = ReplaySource(replay_path) if replay_path else None
         self.live_fusion = LiveFusionFilter(self._live_fusion_config(), self.config, use_start_transform=False)
+        self._live_fusion_has_lidar_anchor = False
         self.latest_frame: RobotFrame | None = None
+        self.latest_local_frame: RobotFrame | None = None
         self._latest_raw_frame: RobotFrame | None = None
         self._latest_display_frame: RobotFrame | None = None
         self._screenshot_threads: list[threading.Thread] = []
@@ -90,6 +98,19 @@ class MainWindow(QMainWindow):
         self._auto_duration_s = duration_s
         self._auto_screenshot_path = screenshot_path
         self._auto_capture = capture_on_start
+        self._auto_replay_speed = replay_speed
+        self._record_video_path_text = record_video_path
+        self._record_gif_path_text = record_gif_path
+        self._record_fps = max(1.0, float(record_fps))
+        self._record_frame_dir: Path | None = None
+        self._record_video_path: Path | None = None
+        self._record_gif_path: Path | None = None
+        self._record_frame_index = 0
+        self._record_encoding_done = False
+        self._record_threads: list[threading.Thread] = []
+        self._record_frame_ext = ".jpg"
+        self._record_max_width_px = 1920
+        self._record_frame_size: tuple[int, int] | None = None
 
         self._build_ui()
         self._apply_theme()
@@ -121,6 +142,10 @@ class MainWindow(QMainWindow):
             dt35_damping=float(display.get("live_fusion_dt35_damping", 0.05)),
             use_dt35=bool(display.get("live_fusion_use_dt35", True)),
         )
+
+    def _reset_live_fusion(self) -> None:
+        self.live_fusion.reset()
+        self._live_fusion_has_lidar_anchor = False
 
     def _remember_text(self, key: str, widget: QLabel | QPushButton | QCheckBox | QGroupBox | QToolButton | QTabWidget) -> None:
         self._text_widgets.setdefault(key, []).append(widget)
@@ -163,13 +188,33 @@ class MainWindow(QMainWindow):
         self._update_labels()
 
     def _schedule_startup_actions(self) -> None:
+        if self._auto_replay_speed is not None:
+            self._set_replay_speed(float(self._auto_replay_speed))
+        if self.replay:
+            QTimer.singleShot(250, self.start_startup_replay)
         if self._auto_serial_port:
             QTimer.singleShot(200, self.open_startup_serial)
         if self._auto_capture:
             QTimer.singleShot(700, self.start_capture)
+        if self._record_video_path_text or self._record_gif_path_text:
+            QTimer.singleShot(350, self.start_window_recording)
         if self._auto_duration_s is not None:
             delay_ms = max(250, int(self._auto_duration_s * 1000.0))
             QTimer.singleShot(delay_ms, self.finish_timed_run)
+
+    def _set_replay_speed(self, speed: float) -> None:
+        speed = max(0.1, float(speed))
+        text = f"{speed:g}x"
+        if self.replay_speed.findText(text) < 0:
+            self.replay_speed.addItem(text)
+        self.replay_speed.setCurrentText(text)
+
+    def start_startup_replay(self) -> None:
+        if not self.replay:
+            return
+        self.step_replay()
+        if self.replay.index < len(self.replay.frames):
+            self.toggle_replay()
 
     def open_startup_serial(self) -> None:
         port = str(self._auto_serial_port)
@@ -185,6 +230,7 @@ class MainWindow(QMainWindow):
     def finish_timed_run(self) -> None:
         if self.capture.active:
             self.stop_capture()
+        self.finish_window_recording()
         if self._auto_screenshot_path:
             out = Path(self._auto_screenshot_path)
             if not out.is_absolute():
@@ -264,14 +310,14 @@ class MainWindow(QMainWindow):
         self.start_policy_combo = QComboBox()
         self.start_policy_combo.addItems(["auto_lidar_offline", "always_local_display", "off"])
         self.start_policy_combo.setCurrentText(str(self.config["robot"].get("start_pose_policy", "auto_lidar_offline")))
-        self.start_side_combo.currentTextChanged.connect(lambda _text: self.live_fusion.reset())
-        self.start_policy_combo.currentTextChanged.connect(lambda _text: self.live_fusion.reset())
+        self.start_side_combo.currentTextChanged.connect(lambda _text: self._reset_live_fusion())
+        self.start_policy_combo.currentTextChanged.connect(lambda _text: self._reset_live_fusion())
         start_form.addRow(self._make_label("side"), self.start_side_combo)
         start_form.addRow(self._make_label("policy"), self.start_policy_combo)
         self.live_fusion_check = QCheckBox(self._t("live_fusion"))
         self._remember_text("live_fusion", self.live_fusion_check)
         self.live_fusion_check.setChecked(bool(self.config.get("display", {}).get("apply_live_fusion", True)))
-        self.live_fusion_check.toggled.connect(lambda _checked: self.live_fusion.reset())
+        self.live_fusion_check.toggled.connect(lambda _checked: self._reset_live_fusion())
         start_form.addRow(self.live_fusion_check)
         layout.addWidget(start_box)
 
@@ -362,7 +408,7 @@ class MainWindow(QMainWindow):
         self._remember_text("live_data", values)
         grid = QGridLayout(values)
         names = [
-            "pos", "lidar", "encoder", "h30", "dt35", "diag",
+            "pos", "map_pose", "lidar", "encoder", "h30", "dt35", "diag",
             "dt35_model", "fps", "bytes", "dropped", "crc", "parse", "interval", "mouse",
         ]
         for row, name in enumerate(names):
@@ -485,6 +531,9 @@ class MainWindow(QMainWindow):
         self.capture_timer = QTimer(self)
         self.capture_timer.timeout.connect(self.capture_map_snapshot)
 
+        self.window_record_timer = QTimer(self)
+        self.window_record_timer.timeout.connect(self.capture_window_record_frame)
+
     def _apply_theme(self) -> None:
         self.setStyleSheet(
             """
@@ -571,7 +620,7 @@ class MainWindow(QMainWindow):
         if self.replay:
             frame = self.replay.step()
             if frame:
-                self.on_frame(frame)
+                self.on_frame(frame, display_ready=getattr(self.replay, "display_ready", False))
             elif self.replay_timer.isActive():
                 self.replay_timer.stop()
                 self.replay_toggle_btn.setText(self._t("play"))
@@ -640,6 +689,171 @@ class MainWindow(QMainWindow):
                 alive.append(thread)
         self._screenshot_threads = alive
 
+    def _resolve_output_path(self, path_text: str) -> Path:
+        out = Path(path_text)
+        if not out.is_absolute():
+            out = PROJECT_ROOT / out
+        return out
+
+    def start_window_recording(self) -> None:
+        if self.window_record_timer.isActive() or self._record_frame_dir is not None:
+            return
+        primary_text = self._record_video_path_text or self._record_gif_path_text
+        if not primary_text:
+            return
+        primary_path = self._resolve_output_path(primary_text)
+        primary_path.parent.mkdir(parents=True, exist_ok=True)
+        self._record_video_path = self._resolve_output_path(self._record_video_path_text) if self._record_video_path_text else None
+        self._record_gif_path = self._resolve_output_path(self._record_gif_path_text) if self._record_gif_path_text else None
+        if self._record_video_path:
+            self._record_video_path.parent.mkdir(parents=True, exist_ok=True)
+        if self._record_gif_path:
+            self._record_gif_path.parent.mkdir(parents=True, exist_ok=True)
+
+        self._record_frame_dir = primary_path.parent / f"{primary_path.stem}_frames"
+        if self._record_frame_dir.exists():
+            for old in self._record_frame_dir.glob("frame_*.*"):
+                old.unlink()
+        self._record_frame_dir.mkdir(parents=True, exist_ok=True)
+        self._record_frame_index = 0
+        self._record_encoding_done = False
+        self._record_frame_size = None
+        interval_ms = max(20, int(1000.0 / self._record_fps))
+        self.window_record_timer.start(interval_ms)
+        self.capture_window_record_frame()
+        self.on_event(f"window recording started: {self._record_frame_dir}")
+
+    def capture_window_record_frame(self) -> None:
+        if self._record_frame_dir is None:
+            return
+        self._record_threads = [thread for thread in self._record_threads if thread.is_alive()]
+        path = self._record_frame_dir / f"frame_{self._record_frame_index:05d}{self._record_frame_ext}"
+        self._record_frame_index += 1
+        image = self.grab().toImage()
+        if self._record_max_width_px > 0 and image.width() > self._record_max_width_px:
+            image = image.scaledToWidth(self._record_max_width_px, Qt.TransformationMode.SmoothTransformation)
+        if self._record_frame_size is None:
+            self._record_frame_size = (image.width(), image.height())
+        elif (image.width(), image.height()) != self._record_frame_size:
+            width, height = self._record_frame_size
+            image = image.scaled(
+                width,
+                height,
+                Qt.AspectRatioMode.IgnoreAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+        thread = threading.Thread(target=self._save_record_frame_image, args=(image, path), daemon=True)
+        thread.start()
+        self._record_threads.append(thread)
+
+    @staticmethod
+    def _save_record_frame_image(image, path: Path) -> None:  # type: ignore[no-untyped-def]
+        image.save(str(path), "JPG", 92)
+
+    def finish_window_recording(self) -> None:
+        if self.window_record_timer.isActive():
+            self.window_record_timer.stop()
+            self.capture_window_record_frame()
+        if self._record_encoding_done or self._record_frame_dir is None:
+            return
+        self._record_encoding_done = True
+        for thread in self._record_threads:
+            thread.join(timeout=10.0)
+        self._record_threads = [thread for thread in self._record_threads if thread.is_alive()]
+        if self._record_threads:
+            self.on_event(f"window recording warning: {len(self._record_threads)} frame writers still running")
+        frame_count = len(list(self._record_frame_dir.glob(f"frame_*{self._record_frame_ext}")))
+        if frame_count == 0:
+            self.on_event("window recording skipped: no frames")
+            return
+        if self._record_video_path:
+            self._encode_window_video(frame_count)
+        if self._record_gif_path:
+            self._encode_window_gif(frame_count)
+
+    def _encode_window_video(self, frame_count: int) -> None:
+        if self._record_frame_dir is None or self._record_video_path is None:
+            return
+        ffmpeg = shutil.which("ffmpeg")
+        if not ffmpeg:
+            self.on_event(f"ffmpeg not found; kept {frame_count} PNG frames: {self._record_frame_dir}")
+            return
+        encode_fps = self._record_encode_fps(frame_count)
+        pattern = self._record_frame_dir / f"frame_%05d{self._record_frame_ext}"
+        cmd = [
+            ffmpeg,
+            "-y",
+            "-framerate",
+            f"{encode_fps:g}",
+            "-i",
+            str(pattern),
+            "-vf",
+            "scale=trunc(iw/2)*2:trunc(ih/2)*2",
+            "-pix_fmt",
+            "yuv420p",
+            "-movflags",
+            "+faststart",
+            str(self._record_video_path),
+        ]
+        proc = subprocess.run(cmd, cwd=str(PROJECT_ROOT), capture_output=True, text=True)
+        if proc.returncode != 0:
+            tail = (proc.stderr or proc.stdout or "").strip().splitlines()[-3:]
+            self.on_event(f"video encode failed: {' | '.join(tail)}")
+            return
+        self.on_event(f"window video saved: {self._record_video_path} frames={frame_count} fps={encode_fps:g}")
+
+    def _encode_window_gif(self, frame_count: int) -> None:
+        if self._record_frame_dir is None or self._record_gif_path is None:
+            return
+        ffmpeg = shutil.which("ffmpeg")
+        if not ffmpeg:
+            self.on_event(f"ffmpeg not found; kept {frame_count} PNG frames: {self._record_frame_dir}")
+            return
+        encode_fps = self._record_encode_fps(frame_count)
+        pattern = self._record_frame_dir / f"frame_%05d{self._record_frame_ext}"
+        palette = self._record_frame_dir / "palette.png"
+        fps = f"{encode_fps:g}"
+        palette_cmd = [
+            ffmpeg,
+            "-y",
+            "-framerate",
+            fps,
+            "-i",
+            str(pattern),
+            "-vf",
+            "fps=10,scale=960:-1:flags=lanczos,palettegen",
+            str(palette),
+        ]
+        gif_cmd = [
+            ffmpeg,
+            "-y",
+            "-framerate",
+            fps,
+            "-i",
+            str(pattern),
+            "-i",
+            str(palette),
+            "-lavfi",
+            "fps=10,scale=960:-1:flags=lanczos[x];[x][1:v]paletteuse",
+            str(self._record_gif_path),
+        ]
+        palette_proc = subprocess.run(palette_cmd, cwd=str(PROJECT_ROOT), capture_output=True, text=True)
+        if palette_proc.returncode != 0:
+            tail = (palette_proc.stderr or palette_proc.stdout or "").strip().splitlines()[-3:]
+            self.on_event(f"gif palette failed: {' | '.join(tail)}")
+            return
+        gif_proc = subprocess.run(gif_cmd, cwd=str(PROJECT_ROOT), capture_output=True, text=True)
+        if gif_proc.returncode != 0:
+            tail = (gif_proc.stderr or gif_proc.stdout or "").strip().splitlines()[-3:]
+            self.on_event(f"gif encode failed: {' | '.join(tail)}")
+            return
+        self.on_event(f"window gif saved: {self._record_gif_path} frames={frame_count}")
+
+    def _record_encode_fps(self, frame_count: int) -> float:
+        if self._auto_duration_s is not None and self._auto_duration_s > 0 and frame_count > 1:
+            return max(1.0, float(frame_count) / float(self._auto_duration_s))
+        return self._record_fps
+
     def send_command_text(self) -> None:
         self.serial.send_text(self.cmd_text.text() + "\n")
 
@@ -659,13 +873,29 @@ class MainWindow(QMainWindow):
             )
         self._update_labels()
 
-    def on_frame(self, frame: RobotFrame) -> None:
+    def on_frame(self, frame: RobotFrame, *, display_ready: bool = False) -> None:
         self.logger.frame(frame)
+        if display_ready:
+            self.latest_frame = frame
+            self.latest_local_frame = frame
+            self._latest_raw_frame = frame
+            self._latest_display_frame = frame
+            self.capture.update_frame_pair(frame, frame)
+            self.map_view.update_frame(frame)
+            return
+
         local_frame = transform_frame(frame, self.config.get("transform", {}))
         display_frame = self._apply_start_pose(local_frame)
-        if getattr(self, "live_fusion_check", None) is not None and self.live_fusion_check.isChecked():
+        if local_frame.lidar_online and local_frame.lidar_valid:
+            self._live_fusion_has_lidar_anchor = True
+        if (
+            getattr(self, "live_fusion_check", None) is not None
+            and self.live_fusion_check.isChecked()
+            and self._live_fusion_has_lidar_anchor
+        ):
             display_frame = self.live_fusion.process(display_frame)
-        self.latest_frame = display_frame
+        self.latest_frame = local_frame
+        self.latest_local_frame = local_frame
         self._latest_raw_frame = frame
         self._latest_display_frame = display_frame
         self.capture.update_frame_pair(frame, display_frame)
@@ -768,7 +998,8 @@ class MainWindow(QMainWindow):
         field_model.setdefault("field_width_cm", self.config.get("map", {}).get("field_width_cm", 1215.0))
         field_model.setdefault("field_height_cm", self.config.get("map", {}).get("field_height_cm", 1210.0))
         residual_gate = float(self.config.get("display", {}).get("live_fusion_dt35_residual_gate_cm", 40.0))
-        yaw_for_dt35 = dt35_yaw_from_frame(frame)
+        yaw_source = str(self.config.get("dt35", {}).get("display_yaw_source", "pos"))
+        yaw_for_dt35 = dt35_yaw_from_frame(frame, yaw_source)
         parts: list[str] = []
         for label, key, distance in (
             ("1", "sensor_1", frame.dt35_1_mm),
@@ -786,52 +1017,61 @@ class MainWindow(QMainWindow):
             if bool(ray.get("valid", False)) and expected == expected and residual == residual:
                 parts.append(
                     f"DT35-{label}: {target_text} {target} "
-                    f"实测{measured:.1f}/预期{expected:.1f}cm 残差{residual:+.1f}cm {state}"
+                    f"meas={measured:.1f}cm exp={expected:.1f}cm residual={residual:+.1f}cm {state}"
                 )
             elif expected == expected:
-                parts.append(f"DT35-{label}: {target_text} {target} 预期{expected:.1f}cm {state}")
+                parts.append(f"DT35-{label}: {target_text} {target} exp={expected:.1f}cm {state}")
             else:
                 parts.append(f"DT35-{label}: {target_text} {target} {state}")
         return " | ".join(parts)
 
     def _dt35_model_state(self, ray: dict[str, object], residual_gate_cm: float) -> str:
+        if bool(ray.get("floor_hit_suspect", False)):
+            return "floor/near-hit suspect; skipped"
         if bool(ray.get("valid", False)) and bool(ray.get("correction_allowed", False)):
             residual = float(ray.get("residual_cm", float("nan")))
             if residual == residual and abs(residual) > residual_gate_cm:
-                return "残差过大/不用"
-            return "可融合"
+                return "large residual; skipped"
+            return "usable"
         return self._dt35_skip_reason(ray)
 
     def _dt35_target_type_text(self, target_type: str) -> str:
         if target_type == "usable_wall":
-            return "墙"
+            return "wall"
         if target_type == "solid_obstacle":
-            return "障碍"
+            return "obstacle"
         if target_type == "ignore":
-            return "忽略区"
+            return "ignore"
         if target_type == "blocker":
-            return "阻挡"
-        return "未知"
+            return "blocker"
+        return "unknown"
 
     def _dt35_skip_reason(self, ray: dict[str, object]) -> str:
+        if bool(ray.get("floor_hit_suspect", False)):
+            return "floor/near-hit suspect; skipped"
         if bool(ray.get("correction_allowed", False)):
-            return "可融合"
+            return "usable"
         if bool(ray.get("corner_ambiguous", False)):
-            return "角点/不用"
+            return "corner; skipped"
         if str(ray.get("expected_target_type", "")) == "ignore":
-            return "干扰区/不用"
+            return "ignored zone; skipped"
         expected = float(ray.get("expected_distance_cm", float("nan")))
         max_range = float(ray.get("max_range_cm", float("nan")))
         if expected != expected:
-            return "无命中"
+            return "no modeled hit"
         if max_range == max_range and expected > max_range:
-            return "超量程/不用"
-        return "不用"
+            return "out of range; skipped"
+        return "skipped"
 
     def _update_labels(self) -> None:
-        f = self.latest_frame
+        f = self.latest_local_frame
+        map_frame = self._latest_display_frame
         if f:
             self.value_labels["pos"].setText(f"{f.pos_x_cm:.2f}, {f.pos_y_cm:.2f}, {f.pos_yaw_deg:.2f}")
+            if map_frame:
+                self.value_labels["map_pose"].setText(
+                    f"{map_frame.pos_x_cm:.2f}, {map_frame.pos_y_cm:.2f}, {map_frame.pos_yaw_deg:.2f}"
+                )
             self.value_labels["lidar"].setText(f"{f.lidar_x_cm:.2f}, {f.lidar_y_cm:.2f}, {f.lidar_yaw_deg:.2f}")
             self.value_labels["encoder"].setText(f"{f.encoder_x_cm:.2f}, {f.encoder_y_cm:.2f} cm")
             self.value_labels["h30"].setText(f"{f.h30_yaw_deg:.2f} deg")
@@ -839,7 +1079,7 @@ class MainWindow(QMainWindow):
             dt35_1 = f"{f.dt35_1_mm:.0f} mm" if f.dt35_1_valid else self._t("dt35_invalid")
             dt35_2 = f"{f.dt35_2_mm:.0f} mm" if f.dt35_2_valid else self._t("dt35_invalid")
             self.value_labels["dt35"].setText(f"{dt35_1} / {dt35_2}")
-            self.value_labels["dt35_model"].setText(self._dt35_model_text(f))
+            self.value_labels["dt35_model"].setText(self._dt35_model_text(map_frame or f))
             self._set_sensor_status("encoder_1", f.x_pulse_seen or bool(f.status & (1 << 10)))
             self._set_sensor_status("encoder_2", f.y_pulse_seen or bool(f.status & (1 << 11)))
             self._set_sensor_status("h30", f.h30_valid)
@@ -857,6 +1097,7 @@ class MainWindow(QMainWindow):
         self.periodic_timer.stop()
         self.replay_timer.stop()
         self.capture_timer.stop()
+        self.finish_window_recording()
         if self.capture.active:
             self.capture.stop()
         self._join_screenshot_saves(timeout_s=2.0)

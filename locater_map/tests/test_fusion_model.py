@@ -17,34 +17,33 @@ def test_default_fusion_trusts_h30_yaw_and_dt35_translation():
     assert cfg.dt35_damping <= 0.1
 
 
-def test_lidar_anchor_does_not_override_valid_h30_yaw():
+def test_lidar_anchor_uses_lidar_yaw_and_h30_delta():
     frames = [
         RobotFrame(
             lidar_x_cm=0.0,
             lidar_y_cm=0.0,
-            lidar_yaw_deg=30.0,
+            lidar_yaw_deg=0.0,
             encoder_x_cm=0.0,
             encoder_y_cm=0.0,
-            h30_yaw_deg=0.0,
+            h30_yaw_deg=-10.0,
             h30_valid=True,
             lidar_valid=True,
         ),
         RobotFrame(
-            lidar_x_cm=10.0,
+            pos_x_cm=10.0,
             lidar_y_cm=0.0,
-            lidar_yaw_deg=35.0,
             encoder_x_cm=10.0,
             encoder_y_cm=0.0,
-            h30_yaw_deg=5.0,
+            h30_yaw_deg=0.0,
             h30_valid=True,
-            lidar_valid=True,
+            lidar_valid=False,
         ),
     ]
 
     result = simulate_fusion(frames, FusionConfig(lidar_stride=1, lidar_gain=1.0, dt35_gain=0.0))
 
     assert result.frames[0].pos_yaw_deg == 0.0
-    assert result.frames[1].pos_yaw_deg == 5.0
+    assert result.frames[1].pos_yaw_deg == 10.0
 
 
 def test_lidar_first_fusion_interpolates_with_encoder_and_h30():
@@ -243,7 +242,7 @@ def test_dt35_does_not_override_current_lidar_anchor_by_default():
         encoder_y_cm=0.0,
         h30_yaw_deg=0.0,
         h30_valid=True,
-        dt35_1_mm=800.0,
+        dt35_1_mm=1200.0,
         dt35_1_valid=True,
     )
 
@@ -283,7 +282,7 @@ def test_dt35_can_correct_current_lidar_anchor_when_explicitly_enabled():
         encoder_y_cm=0.0,
         h30_yaw_deg=0.0,
         h30_valid=True,
-        dt35_1_mm=800.0,
+        dt35_1_mm=1200.0,
         dt35_1_valid=True,
     )
 
@@ -301,7 +300,7 @@ def test_dt35_can_correct_current_lidar_anchor_when_explicitly_enabled():
         config,
     )
 
-    assert result.frames[0].pos_x_cm < -15.0
+    assert result.frames[0].pos_x_cm > 15.0
     assert result.frames[0].pos_yaw_deg == 0.0
 
 
@@ -345,6 +344,52 @@ def test_live_fusion_filter_corrects_display_pose_with_dt35():
     assert abs(fused.pos_x_cm) < 0.1
     assert fused.pos_yaw_deg == 0.0
     assert fused.status & (1 << 6)
+
+
+def test_live_fusion_lidar_frame_keeps_lidar_yaw_with_h30_and_dt35():
+    config = {
+        "map": {"field_width_cm": 1215.0, "field_height_cm": 1210.0},
+        "robot": {"start_pose_policy": "off"},
+        "field_model": {"enabled": True, "use_field_boundary": True, "field_width_cm": 1215.0, "field_height_cm": 1210.0},
+        "dt35": {
+            "sensor_1": {"enabled": True, "offset_x_cm": -40.4, "offset_y_cm": -3.3, "yaw_offset_deg": -90.0, "max_range_cm": 1000.0},
+            "sensor_2": {"enabled": True, "offset_x_cm": 40.4, "offset_y_cm": -3.3, "yaw_offset_deg": 90.0, "max_range_cm": 1000.0},
+        },
+    }
+    filt = LiveFusionFilter(
+        FusionConfig(
+            lidar_stride=1,
+            lidar_gain=1.0,
+            dt35_gain=1.0,
+            dt35_yaw_gain=0.0,
+            dt35_correct_lidar_frames=True,
+            dt35_residual_gate_cm=8.0,
+        ),
+        config,
+        use_start_transform=False,
+    )
+    frame = RobotFrame(
+        pos_x_cm=-552.151,
+        pos_y_cm=550.149,
+        pos_yaw_deg=0.064,
+        lidar_x_cm=-552.151,
+        lidar_y_cm=550.149,
+        lidar_yaw_deg=0.063,
+        lidar_valid=True,
+        lidar_online=True,
+        encoder_x_cm=-549.010,
+        encoder_y_cm=549.689,
+        h30_yaw_deg=-0.875,
+        h30_valid=True,
+        dt35_1_mm=204.037,
+        dt35_2_mm=5194.873,
+        dt35_1_valid=True,
+        dt35_2_valid=True,
+    )
+
+    fused = filt.process(frame)
+
+    assert abs(fused.pos_yaw_deg - frame.lidar_yaw_deg) < 0.001
 
 
 def test_live_fusion_filter_resets_on_sequence_rewind():

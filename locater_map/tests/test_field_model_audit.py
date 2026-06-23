@@ -20,8 +20,10 @@ def test_field_model_audit_reports_dimensions_targets_and_missing_real_evidence(
     assert audit["map"]["field_height_cm"] == 1210.0
     assert audit["map"]["pixels_per_cm_x"] == 2.0
     assert audit["map"]["pixels_per_cm_y"] == 2.0
-    assert audit["dt35"]["sensor_1"]["offset_x_cm"] == 40.4
-    assert audit["dt35"]["sensor_2"]["offset_x_cm"] == -40.4
+    assert audit["dt35"]["sensor_1"]["offset_x_cm"] == -40.4
+    assert audit["dt35"]["sensor_2"]["offset_x_cm"] == 40.4
+    assert _default_config()["dt35"]["sensor_1"]["distance_bias_mm"] == 0.0
+    assert _default_config()["dt35"]["sensor_2"]["distance_bias_mm"] == 0.0
     assert "usable_wall" in audit["field_model"]["target_type_counts"]
     assert "ignore" in audit["field_model"]["target_type_counts"]
     assert "solid_obstacle" in audit["field_model"]["target_type_counts"]

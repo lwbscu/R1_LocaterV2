@@ -64,8 +64,20 @@ def heading_vector_from_front_yaw(yaw_deg: float) -> tuple[float, float]:
     return sin(yaw), cos(yaw)
 
 
-def dt35_yaw_from_frame(frame: RobotFrame) -> float:
-    """Use H30 yaw for DT35 world projection whenever the IMU attitude is valid."""
+def dt35_yaw_from_frame(frame: RobotFrame, source: str = "h30") -> float:
+    """Return the yaw used to project DT35 rays.
+
+    `h30` is useful for offline sensor consistency analysis. The map display
+    should normally use `pos`, so DT35 rays stay visually attached to the
+    displayed robot body.
+    """
+    source = str(source or "h30").lower()
+    if source == "pos":
+        return frame.pos_yaw_deg
+    if source == "lidar":
+        return frame.lidar_yaw_deg if (frame.lidar_valid or frame.lidar_online) else frame.pos_yaw_deg
+    if source in ("encoder", "calib"):
+        return frame.calib_yaw_deg
     return frame.h30_yaw_deg if (frame.h30_valid or frame.h30_has_attitude) else frame.pos_yaw_deg
 
 
@@ -96,8 +108,11 @@ def _segment_intersection_t(
     return None
 
 
-FieldSegment = tuple[str, float, float, float, float, str, float]
+FieldSegment = tuple[str, float, float, float, float, str, float, bool]
+HitCandidate = tuple[float, str, str, float, float, float, float, float, float, float, bool]
 CORRECTION_TARGET_TYPES = {"usable_wall", "solid_obstacle"}
+DEFAULT_MISSING_TARGET_SKIPPABLE_TYPES: set[str] = set()
+DEFAULT_DISPLAY_CLIP_TARGET_TYPES = {"usable_wall", "solid_obstacle", "blocker"}
 
 
 def _target_type(item: dict[str, Any], default: str = "usable_wall") -> str:
@@ -114,6 +129,19 @@ def _correction_weight(item: dict[str, Any], target_type: str) -> float:
     return 0.0
 
 
+def _missing_target_skippable(item: dict[str, Any], target_type: str, field_model: dict[str, Any] | None) -> bool:
+    if "missing_target_skippable" in item:
+        return bool(item["missing_target_skippable"])
+    skippable_types = set(
+        str(value)
+        for value in (field_model or {}).get(
+            "missing_target_skippable_types",
+            sorted(DEFAULT_MISSING_TARGET_SKIPPABLE_TYPES),
+        )
+    )
+    return target_type in skippable_types
+
+
 def _field_segments(field_model: dict[str, Any] | None) -> list[FieldSegment]:
     if not field_model or not bool(field_model.get("enabled", False)):
         return []
@@ -126,11 +154,12 @@ def _field_segments(field_model: dict[str, Any] | None) -> list[FieldSegment]:
         x1 = width * 0.5
         y0 = -height * 0.5
         y1 = height * 0.5
+        boundary_skippable = bool(field_model.get("field_boundary_missing_target_skippable", True))
         segments.extend([
-            ("field_left", x0, y0, x0, y1, "usable_wall", 1.0),
-            ("field_right", x1, y0, x1, y1, "usable_wall", 1.0),
-            ("field_bottom", x0, y0, x1, y0, "usable_wall", 1.0),
-            ("field_top", x0, y1, x1, y1, "usable_wall", 1.0),
+            ("field_left", x0, y0, x0, y1, "usable_wall", 1.0, boundary_skippable),
+            ("field_right", x1, y0, x1, y1, "usable_wall", 1.0, boundary_skippable),
+            ("field_bottom", x0, y0, x1, y0, "usable_wall", 1.0, boundary_skippable),
+            ("field_top", x0, y1, x1, y1, "usable_wall", 1.0, boundary_skippable),
         ])
 
     for item in field_model.get("segments", []):
@@ -145,6 +174,7 @@ def _field_segments(field_model: dict[str, Any] | None) -> list[FieldSegment]:
             float(item["y2_cm"]),
             target_type,
             _correction_weight(item, target_type),
+            _missing_target_skippable(item, target_type, field_model),
         ))
 
     for item in field_model.get("rectangles", []):
@@ -161,11 +191,12 @@ def _field_segments(field_model: dict[str, Any] | None) -> list[FieldSegment]:
         x1 = cx + w * 0.5
         y0 = cy - h * 0.5
         y1 = cy + h * 0.5
+        skippable = _missing_target_skippable(item, target_type, field_model)
         segments.extend([
-            (f"{name}_left", x0, y0, x0, y1, target_type, weight),
-            (f"{name}_right", x1, y0, x1, y1, target_type, weight),
-            (f"{name}_bottom", x0, y0, x1, y0, target_type, weight),
-            (f"{name}_top", x0, y1, x1, y1, target_type, weight),
+            (f"{name}_left", x0, y0, x0, y1, target_type, weight, skippable),
+            (f"{name}_right", x1, y0, x1, y1, target_type, weight, skippable),
+            (f"{name}_bottom", x0, y0, x1, y0, target_type, weight, skippable),
+            (f"{name}_top", x0, y1, x1, y1, target_type, weight, skippable),
         ])
     return segments
 
@@ -176,24 +207,47 @@ def expected_dt35_hit(
     ray_yaw_deg: float,
     field_model: dict[str, Any] | None,
 ) -> dict[str, float | str] | None:
+    candidates, dx, dy = _dt35_hit_candidates(sensor_x_cm, sensor_y_cm, ray_yaw_deg, field_model)
+    if not candidates:
+        return None
+    return _dt35_hit_from_candidate(candidates[0], candidates, sensor_x_cm, sensor_y_cm, dx, dy, field_model)
+
+
+def _dt35_hit_candidates(
+    sensor_x_cm: float,
+    sensor_y_cm: float,
+    ray_yaw_deg: float,
+    field_model: dict[str, Any] | None,
+) -> tuple[list[HitCandidate], float, float]:
     dx, dy = heading_vector_from_front_yaw(ray_yaw_deg)
-    max_incidence_deg = float((field_model or {}).get("max_correction_incidence_deg", 75.0))
     incidence_power = max(0.0, float((field_model or {}).get("incidence_weight_power", 1.0)))
-    corner_tolerance_cm = max(0.0, float((field_model or {}).get("corner_ambiguity_cm", 3.0)))
-    candidates: list[tuple[float, str, str, float, float, float, float, float, float, float]] = []
-    for name, ax, ay, bx, by, target_type, weight in _field_segments(field_model):
+    candidates: list[HitCandidate] = []
+    for name, ax, ay, bx, by, target_type, weight, skippable in _field_segments(field_model):
         t = _segment_intersection_t(sensor_x_cm, sensor_y_cm, dx, dy, ax, ay, bx, by)
         if t is None:
             continue
         incidence_deg, incidence_scale = _segment_incidence(dx, dy, ax, ay, bx, by, incidence_power)
-        candidates.append((t, name, target_type, weight, incidence_deg, incidence_scale, ax, ay, bx, by))
-    if not candidates:
-        return None
+        candidates.append((t, name, target_type, weight, incidence_deg, incidence_scale, ax, ay, bx, by, skippable))
     candidates.sort(key=lambda item: item[0])
-    best = candidates[0]
+    return candidates, dx, dy
+
+
+def _dt35_hit_from_candidate(
+    best: HitCandidate,
+    candidates: list[HitCandidate],
+    sensor_x_cm: float,
+    sensor_y_cm: float,
+    dx: float,
+    dy: float,
+    field_model: dict[str, Any] | None,
+) -> dict[str, float | str]:
+    max_incidence_deg = float((field_model or {}).get("max_correction_incidence_deg", 75.0))
+    corner_tolerance_cm = max(0.0, float((field_model or {}).get("corner_ambiguity_cm", 3.0)))
     corner_ambiguous = any(
-        abs(candidate[0] - best[0]) <= corner_tolerance_cm and _segments_are_nonparallel(best, candidate)
-        for candidate in candidates[1:]
+        candidate is not best
+        and abs(candidate[0] - best[0]) <= corner_tolerance_cm
+        and _segments_are_nonparallel(best, candidate)
+        for candidate in candidates
     )
     distance_cm, name, target_type, base_weight, incidence_deg, incidence_scale = best[:6]
     weight = base_weight * incidence_scale
@@ -219,12 +273,76 @@ def expected_dt35_hit(
     }
 
 
+def _expected_dt35_hit_for_measurement(
+    sensor_x_cm: float,
+    sensor_y_cm: float,
+    ray_yaw_deg: float,
+    measured_distance_cm: float | None,
+    field_model: dict[str, Any] | None,
+) -> dict[str, float | str] | None:
+    candidates, dx, dy = _dt35_hit_candidates(sensor_x_cm, sensor_y_cm, ray_yaw_deg, field_model)
+    if not candidates:
+        return None
+
+    nearest = _dt35_hit_from_candidate(candidates[0], candidates, sensor_x_cm, sensor_y_cm, dx, dy, field_model)
+    selected_index = 0
+    if (
+        bool((field_model or {}).get("infer_missing_targets", False))
+        and measured_distance_cm is not None
+        and isfinite(measured_distance_cm)
+        and measured_distance_cm > 0.0
+    ):
+        gate_cm = max(0.0, float((field_model or {}).get("missing_target_residual_gate_cm", 12.0)))
+        max_skip_count = max(0, int((field_model or {}).get("missing_target_max_skip_count", 4)))
+        for index, candidate in enumerate(candidates[: max_skip_count + 1]):
+            distance_cm, _name, target_type = candidate[:3]
+            skipped = candidates[:index]
+            if any(not bool(item[10]) for item in skipped):
+                break
+            if target_type not in CORRECTION_TARGET_TYPES:
+                continue
+            if abs(measured_distance_cm - distance_cm) <= gate_cm:
+                selected_index = index
+                break
+
+    selected = candidates[selected_index]
+    hit = _dt35_hit_from_candidate(selected, candidates, sensor_x_cm, sensor_y_cm, dx, dy, field_model)
+    hit["nearest_hit_x_cm"] = float(nearest["hit_x_cm"])
+    hit["nearest_hit_y_cm"] = float(nearest["hit_y_cm"])
+    skipped = candidates[:selected_index]
+    if skipped:
+        hit["inferred_missing_target"] = "1"
+        hit["skipped_target_count"] = float(len(skipped))
+        hit["skipped_targets"] = ",".join(item[1] for item in skipped)
+        hit["nearest_target"] = candidates[0][1]
+        hit["nearest_target_type"] = candidates[0][2]
+        hit["nearest_distance_cm"] = candidates[0][0]
+    else:
+        hit["inferred_missing_target"] = "0"
+        hit["skipped_target_count"] = 0.0
+        hit["skipped_targets"] = ""
+        hit["nearest_target"] = candidates[0][1]
+        hit["nearest_target_type"] = candidates[0][2]
+        hit["nearest_distance_cm"] = candidates[0][0]
+    return hit
+
+
+def _display_clip_target_types(field_model: dict[str, Any] | None) -> set[str]:
+    return set(
+        str(item)
+        for item in (field_model or {}).get(
+            "display_clip_target_types",
+            sorted(DEFAULT_DISPLAY_CLIP_TARGET_TYPES),
+        )
+    )
+
+
 def _segments_are_nonparallel(
-    first: tuple[float, str, str, float, float, float, float, float, float, float],
-    second: tuple[float, str, str, float, float, float, float, float, float, float],
+    first: HitCandidate,
+    second: HitCandidate,
 ) -> bool:
-    _, _, _, _, _, _, ax1, ay1, bx1, by1 = first
-    _, _, _, _, _, _, ax2, ay2, bx2, by2 = second
+    _, _, _, _, _, _, ax1, ay1, bx1, by1, _ = first
+    _, _, _, _, _, _, ax2, ay2, bx2, by2, _ = second
     vx1 = bx1 - ax1
     vy1 = by1 - ay1
     vx2 = bx2 - ax2
@@ -269,19 +387,44 @@ def dt35_ray(
     ox = float(sensor_cfg.get("offset_x_cm", 0.0))
     oy = float(sensor_cfg.get("offset_y_cm", 0.0))
     yaw_offset = float(sensor_cfg.get("yaw_offset_deg", 0.0))
+    distance_bias_mm = float(sensor_cfg.get("distance_bias_mm", 0.0))
     max_range_cm = float(sensor_cfg.get("max_range_cm", 999999.0))
     enabled = bool(sensor_cfg.get("enabled", True))
     sensor_x, sensor_y = robot_local_to_world(robot_x_cm, robot_y_cm, robot_yaw_deg, ox, oy)
-    d_cm = max(0.0, float(distance_mm) / 10.0)
+    d_cm = max(0.0, (float(distance_mm) + distance_bias_mm) / 10.0)
     valid = enabled and 0.0 < d_cm <= max_range_cm
     draw_d = d_cm if valid else max_range_cm
     ray_yaw_deg = robot_yaw_deg + yaw_offset
     dx, dy = heading_vector_from_front_yaw(ray_yaw_deg)
     hit_x = sensor_x + draw_d * dx
     hit_y = sensor_y + draw_d * dy
-    expected = expected_dt35_hit(sensor_x, sensor_y, ray_yaw_deg, field_model)
+    expected = _expected_dt35_hit_for_measurement(sensor_x, sensor_y, ray_yaw_deg, d_cm if valid else None, field_model)
     expected_distance = float(expected["distance_cm"]) if expected is not None else float("nan")
+    nearest_distance = float(expected["nearest_distance_cm"]) if expected is not None else float("nan")
+    nearest_hit_x = float(expected["nearest_hit_x_cm"]) if expected is not None else float("nan")
+    nearest_hit_y = float(expected["nearest_hit_y_cm"]) if expected is not None else float("nan")
+    nearest_target = str(expected["nearest_target"]) if expected is not None else ""
+    nearest_target_type = str(expected["nearest_target_type"]) if expected is not None else ""
     residual = d_cm - expected_distance if valid and isfinite(expected_distance) else float("nan")
+    floor_gate_cm = max(0.0, float((field_model or {}).get("floor_hit_negative_residual_gate_cm", 12.0)))
+    floor_hit_suspect = valid and isfinite(residual) and residual < -floor_gate_cm
+    display_hit_x = hit_x
+    display_hit_y = hit_y
+    display_distance_cm = draw_d
+    display_clipped = False
+    clip_types = _display_clip_target_types(field_model)
+    if (
+        expected is not None
+        and isfinite(nearest_distance)
+        and isfinite(nearest_hit_x)
+        and isfinite(nearest_hit_y)
+        and nearest_target_type in clip_types
+        and draw_d > nearest_distance
+    ):
+        display_hit_x = nearest_hit_x
+        display_hit_y = nearest_hit_y
+        display_distance_cm = nearest_distance
+        display_clipped = True
     return {
         "name": str(sensor_cfg.get("name", "DT35")),
         "enabled": enabled,
@@ -290,13 +433,24 @@ def dt35_ray(
         "sensor_y_cm": sensor_y,
         "hit_x_cm": hit_x,
         "hit_y_cm": hit_y,
+        "measured_hit_x_cm": hit_x,
+        "measured_hit_y_cm": hit_y,
+        "display_hit_x_cm": display_hit_x,
+        "display_hit_y_cm": display_hit_y,
+        "display_distance_cm": display_distance_cm,
+        "display_clipped_by_model": display_clipped,
+        "display_clip_target": nearest_target if display_clipped else "",
+        "display_clip_target_type": nearest_target_type if display_clipped else "",
         "distance_cm": d_cm,
+        "distance_bias_mm": distance_bias_mm,
         "max_range_cm": max_range_cm,
         "ray_yaw_deg": ray_yaw_deg,
         "expected_hit_x_cm": float(expected["hit_x_cm"]) if expected is not None else float("nan"),
         "expected_hit_y_cm": float(expected["hit_y_cm"]) if expected is not None else float("nan"),
         "expected_distance_cm": expected_distance,
         "residual_cm": residual,
+        "floor_hit_suspect": floor_hit_suspect,
+        "floor_hit_negative_residual_gate_cm": floor_gate_cm,
         "expected_target": str(expected["name"]) if expected is not None else "",
         "expected_target_type": str(expected["target_type"]) if expected is not None else "",
         "base_correction_weight": float(expected["base_correction_weight"]) if expected is not None else 0.0,
@@ -305,4 +459,12 @@ def dt35_ray(
         "incidence_scale": float(expected["incidence_scale"]) if expected is not None else 0.0,
         "correction_weight": float(expected["correction_weight"]) if expected is not None else 0.0,
         "correction_allowed": bool(int(str(expected["correction_allowed"]))) if expected is not None else False,
+        "inferred_missing_target": bool(int(str(expected["inferred_missing_target"]))) if expected is not None else False,
+        "skipped_target_count": int(float(expected["skipped_target_count"])) if expected is not None else 0,
+        "skipped_targets": str(expected["skipped_targets"]) if expected is not None else "",
+        "nearest_target": nearest_target,
+        "nearest_target_type": nearest_target_type,
+        "nearest_distance_cm": nearest_distance,
+        "nearest_hit_x_cm": nearest_hit_x,
+        "nearest_hit_y_cm": nearest_hit_y,
     }

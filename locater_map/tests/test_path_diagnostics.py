@@ -63,6 +63,7 @@ def test_synthetic_path_diagnostic_reports_frame_level_targets(tmp_path):
     assert "dt35_2_correction_dy_per_cm" in header
     assert "dt35_1_fusion_allowed" in header
     assert "dt35_1_residual_gate_cm" in header
+    assert "dt35_1_floor_hit_suspect" in header
     assert "dt35_translation_rank" in header
     assert "dt35_constraint_state" in header
     assert "no_dt35_xy_error_cm" in header
@@ -91,6 +92,7 @@ def test_real_csv_style_path_diagnostic_uses_existing_frames():
         config,
         frames,
         FusionConfig(lidar_stride=20, lidar_gain=1.0, dt35_gain=1.0, dt35_yaw_gain=0.0),
+        start_policy="off",
     )
 
     assert len(rows) == len(frames)
@@ -156,6 +158,7 @@ def _residual_row(ray_yaw_deg: float) -> DT35FrameResidualRow:
         residual_cm=10.0,
         residual_gate_cm=40.0,
         residual_within_gate=True,
+        floor_hit_suspect=False,
         abs_residual_cm=10.0,
         expected_target="field_left",
         expected_target_type="usable_wall",

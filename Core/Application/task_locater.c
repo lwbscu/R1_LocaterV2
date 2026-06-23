@@ -146,7 +146,9 @@ static bool lidar_to_chassis_abs_pose(const LidarPose_Data_t *lidar,
             (LOCATER_LIDAR_OFFSET_X_CM * sin_yaw +
              LOCATER_LIDAR_OFFSET_Y_CM * cos_yaw) +
             LOCATER_LIDAR_OFFSET_Y_CM;
-    *yaw_deg = yaw;
+    *x_cm -= LOCATER_LIDAR_ORIGIN_BIAS_X_CM;
+    *y_cm -= LOCATER_LIDAR_ORIGIN_BIAS_Y_CM;
+    *yaw_deg = angle_normal_deg(yaw - LOCATER_LIDAR_ORIGIN_BIAS_YAW_DEG);
 
 #if LOCATER_LIDAR_POSE_IS_START_LOCAL
     float start_x_cm = 0.0f;

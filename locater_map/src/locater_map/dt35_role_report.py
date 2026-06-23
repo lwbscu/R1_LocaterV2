@@ -116,8 +116,8 @@ def build_dt35_role_markdown(rows: list[DT35RoleRow], summary: DT35RoleSummary) 
         "Coordinate assumptions:",
         "- Lidar pose is the world-frame pose.",
         "- H30 yaw rotates each DT35 ray from robot frame into world frame.",
-        "- DT35-1 is on robot +X and shoots local -X.",
-        "- DT35-2 is on robot -X and shoots local +X.",
+        "- DT35-1 is on robot -X and shoots local -X.",
+        "- DT35-2 is on robot +X and shoots local +X.",
         "- Usable wall, forest, and ramp hits may correct translation; ignored-interference hits must not correct pose.",
         "",
         "Summary:",
@@ -220,9 +220,9 @@ def _role_row(row: DT35HitRow) -> DT35RoleRow:
 
 def _mount_and_ray(row: DT35HitRow) -> tuple[str, str]:
     if row.sensor_key == "sensor_1":
-        return "right_side(+X)", "leftward(local -X)"
+        return "left_side(-X)", "leftward(local -X)"
     if row.sensor_key == "sensor_2":
-        return "left_side(-X)", "rightward(local +X)"
+        return "right_side(+X)", "rightward(local +X)"
     return "unknown", "unknown"
 
 
