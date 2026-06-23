@@ -1,6 +1,10 @@
 /cmake-build-debug/
 AGENTS.md
-docs/
+docs/*
+!docs/promotion/
+!docs/promotion/**
+.skill-evals/
+.promotion-context.json
 codex日志.md
 
 # Python
