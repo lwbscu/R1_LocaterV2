@@ -17,17 +17,11 @@ R1_LocaterV2 是基于 STM32G4 的 R1 机器人定位板工程。它把 H30 MINI
   <img alt="Fusion" src="https://img.shields.io/badge/%E5%A4%9A%E4%BC%A0%E6%84%9F%E5%99%A8-%E8%9E%8D%E5%90%88-ffc240?style=flat">
 </p>
 
-**启动局部零点，多传感器闭环。**
+## What's NEW!
 
-R1_LocaterV2 把 Lidar 启动局部位姿、H30 yaw、双正交编码轮里程计、双 DT35 测距和 PySide6 实时地图上位机放到同一套定位调试闭环中，用于实车定位、传感器排障、数据采集和 real2sim / RLHF 迭代。
-
-<p align="center">
-  <a href="https://raw.githack.com/lwbscu/R1_LocaterV2/main/docs/promo-video.html">
-    <img src="docs/promotion/r1-locaterv2-ui-demo.png" alt="Watch the R1_LocaterV2 demo walkthrough" width="960">
-  </a>
-  <br>
-  <a href="https://raw.githack.com/lwbscu/R1_LocaterV2/main/docs/promo-video.html">打开演示视频与实车/仿真训练页</a>
-</p>
+- [2026/06] 🔥 完成 R1_LocaterV2 定位板重构：STM32G4 固件、PySide6 上位机、日志采集和回放闭环统一到同一套工程。
+- [2026/06] 🔥 打通 H30 yaw、双正交编码轮、Lidar 位姿、双 DT35 测距与场地墙体模型，用启动局部零点对齐底盘主控输出。
+- [2026/06] 🔥 初步实车全程 yaw 累计误差约 `0.04 deg`，并建立 real2sim / RLHF 数据采集与离线评估链路。
 
 ## 当前状态
 
@@ -160,7 +154,8 @@ docs/promotion/          README 封面、演示视频、平台文章草稿、剪
 
 - GitHub 封面：[`docs/promotion/r1-locaterv2-poster.png`](docs/promotion/r1-locaterv2-poster.png)
 - 演示视频：[`docs/promotion/r1-locaterv2-demo.mp4`](docs/promotion/r1-locaterv2-demo.mp4)
-- 独立宣传页：[`docs/promotion/index.html`](docs/promotion/index.html)
+- 独立宣传页：[`docs/index.html`](https://raw.githack.com/lwbscu/R1_LocaterV2/main/docs/index.html)
+- 演示视频页：[`docs/promo-video.html`](https://raw.githack.com/lwbscu/R1_LocaterV2/main/docs/promo-video.html)
 - 剪映草稿脚本：[`docs/promotion/jianying/create_r1_locaterv2_promo.py`](docs/promotion/jianying/create_r1_locaterv2_promo.py)
 - 掘金草稿：[`docs/promotion/juejin-draft.md`](docs/promotion/juejin-draft.md)
 - 知乎草稿：[`docs/promotion/zhihu-draft.md`](docs/promotion/zhihu-draft.md)
