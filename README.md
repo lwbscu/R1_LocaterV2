@@ -9,6 +9,10 @@ R1_LocaterV2 是基于 STM32G4 的 R1 机器人定位板工程。它把 H30 MINI
 </p>
 
 <p align="center">
+  <a href="https://lwbscu.github.io/R1_LocaterV2/"><b>打开项目宣传页 / Live Demo Page</b></a>
+</p>
+
+<p align="center">
   <a href="https://github.com/lwbscu/R1_LocaterV2"><img alt="GitHub Repo" src="https://img.shields.io/badge/GitHub-Repo-181717?style=flat&logo=github&logoColor=white"></a>
   <a href="https://lwbscu.github.io/R1_LocaterV2/"><img alt="Live Page" src="https://img.shields.io/badge/Live-Page-00a6d6?style=flat"></a>
   <a href="https://juejin.cn/spost/7654479136493420554"><img alt="Juejin Article" src="https://img.shields.io/badge/Juejin-Article-1e80ff?style=flat"></a>

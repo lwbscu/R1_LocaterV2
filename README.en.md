@@ -9,6 +9,10 @@ R1_LocaterV2 is an STM32G4-based localization board project for the R1 robot. It
 </p>
 
 <p align="center">
+  <a href="https://lwbscu.github.io/R1_LocaterV2/"><b>Open Project Promotion Page / Live Demo Page</b></a>
+</p>
+
+<p align="center">
   <a href="https://github.com/lwbscu/R1_LocaterV2"><img alt="GitHub Repo" src="https://img.shields.io/badge/GitHub-Repo-181717?style=flat&logo=github&logoColor=white"></a>
   <a href="https://lwbscu.github.io/R1_LocaterV2/"><img alt="Live Page" src="https://img.shields.io/badge/Live-Page-00a6d6?style=flat"></a>
   <a href="https://juejin.cn/spost/7654479136493420554"><img alt="Juejin Article" src="https://img.shields.io/badge/Juejin-Article-1e80ff?style=flat"></a>
