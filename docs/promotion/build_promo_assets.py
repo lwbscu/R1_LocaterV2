@@ -24,6 +24,14 @@ SIM_STAGE_CLIPS = [
     ("async_occlusion_log", "r1-locaterv2-sim-stage-async-occlusion.mp4"),
     ("lidar_noise_log", "r1-locaterv2-sim-stage-lidar-noise.mp4"),
 ]
+SIM_SOURCE_FPS = "1"
+SIM_DISPLAY_FPS = "10"
+SIM_FILTER = (
+    "scale=1280:720:force_original_aspect_ratio=decrease,"
+    "pad=1280:720:(ow-iw)/2:(oh-ih)/2,"
+    f"framerate=fps={SIM_DISPLAY_FPS}:interp_start=0:interp_end=255:scene=100,"
+    "format=yuv420p"
+)
 
 W, H = 1920, 1080
 POSTER_W, POSTER_H = 2160, 1440
@@ -392,13 +400,13 @@ def encode_sim_clip(out: Path, png_dir: Path | None = None) -> Path | None:
             "ffmpeg",
             "-y",
             "-framerate",
-            "1",
+            SIM_SOURCE_FPS,
             "-i",
             str(tmp_frames / "%04d.png"),
             "-vf",
-            "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,format=yuv420p",
+            SIM_FILTER,
             "-r",
-            "24",
+            SIM_DISPLAY_FPS,
             "-an",
             "-c:v",
             "libx264",
