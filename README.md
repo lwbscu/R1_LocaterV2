@@ -1,9 +1,5 @@
 # R1_LocaterV2
 
-<p align="center">
-  <b>中文</b> / <a href="README.en.md">English</a>
-</p>
-
 R1_LocaterV2 是基于 STM32G4 的 R1 机器人定位板工程。它把 H30 MINI 惯导、双正交编码轮、Lidar 位姿、双 DT35 测距和 Windows 上位机调试工具统一到一套定位闭环中，用于比赛场地中的实时定位、传感器排障、数据采集和 real2sim 算法迭代。
 
 <p align="center">
@@ -19,6 +15,8 @@ R1_LocaterV2 是基于 STM32G4 的 R1 机器人定位板工程。它把 H30 MINI
   <a href="https://lwbscu.github.io/R1_LocaterV2/promo-video.html"><img alt="Demo Video" src="https://img.shields.io/badge/Demo-Video-ff4d4f?style=flat"></a>
   <img alt="STM32G4" src="https://img.shields.io/badge/MCU-STM32G4-2ea44f?style=flat">
   <img alt="Fusion" src="https://img.shields.io/badge/%E5%A4%9A%E4%BC%A0%E6%84%9F%E5%99%A8-%E8%9E%8D%E5%90%88-ffc240?style=flat">
+  <img alt="Chinese README" src="https://img.shields.io/badge/中文-README-f59e0b?style=flat">
+  <a href="README.en.md"><img alt="English README" src="https://img.shields.io/badge/English-README-64748b?style=flat"></a>
 </p>
 
 ## What's NEW!

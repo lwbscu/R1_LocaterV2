@@ -1,9 +1,5 @@
 # R1_LocaterV2
 
-<p align="center">
-  <a href="README.md">中文</a> / <b>English</b>
-</p>
-
 R1_LocaterV2 is an STM32G4-based localization board project for the R1 robot. It integrates H30 MINI yaw, two orthogonal encoder wheels, Lidar pose, dual DT35 distance sensors, and a Windows debugging station into one localization loop for real-time field localization, sensor diagnosis, data collection, and real2sim iteration.
 
 <p align="center">
@@ -19,6 +15,8 @@ R1_LocaterV2 is an STM32G4-based localization board project for the R1 robot. It
   <a href="https://lwbscu.github.io/R1_LocaterV2/promo-video.html"><img alt="Demo Video" src="https://img.shields.io/badge/Demo-Video-ff4d4f?style=flat"></a>
   <img alt="STM32G4" src="https://img.shields.io/badge/MCU-STM32G4-2ea44f?style=flat">
   <img alt="Fusion" src="https://img.shields.io/badge/Multi--sensor-Fusion-ffc240?style=flat">
+  <a href="README.md"><img alt="Chinese README" src="https://img.shields.io/badge/中文-README-64748b?style=flat"></a>
+  <img alt="English README" src="https://img.shields.io/badge/English-README-f59e0b?style=flat">
 </p>
 
 ## What's New
