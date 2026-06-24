@@ -228,6 +228,41 @@ def make_card(path: Path, title: str, subtitle: str, body: list[str], image: Pat
     return path
 
 
+def make_ack_card(path: Path) -> Path:
+    canvas, draw = base_canvas()
+    draw.text((90, 80), "致谢", font=F_TITLE, fill=TEXT)
+
+    body = [
+        "技术总负责：@lwbscu",
+        "电控技术支持：@Thomaswang2005 / @HIRAMHC111",
+        "lidar 技术支持：@Getting05 / @qyw23AI",
+        "硬件芯片设计：@twenty-fourabc / @2718487561-a11y / @wancyu",
+        "机械结构设计：马克（GitHub 用户名待定）",
+    ]
+    y = 215
+    for item in body:
+        draw.rectangle((96, y + 12, 120, y + 36), fill=GREEN)
+        draw.text((145, y), item, font=F_BODY, fill=TEXT)
+        y += 72
+
+    cards = [
+        ((420, 640, 850, 990), PANGOLIN_LOGO, "Pangolin 团队标志"),
+        ((1070, 640, 1500, 990), R1_IP_IMAGE, "R1 IP 形象"),
+    ]
+    for box, image, label in cards:
+        x1, y1, x2, y2 = box
+        round_rect(draw, box, 24, PANEL, outline=(52, 77, 105), width=2)
+        if image.exists():
+            paste_fit(canvas, image, (x1 + 42, y1 + 36, x2 - 42, y2 - 95), cover=False)
+        label_width = int(draw.textlength(label, font=F_BODY))
+        draw.text((x1 + (x2 - x1 - label_width) // 2, y2 - 66), label, font=F_BODY, fill=TEXT)
+        draw.line((x1 + 42, y1 + 28, x1 + 165, y1 + 28), fill=CYAN if image == R1_IP_IMAGE else GREEN, width=8)
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    canvas.save(path, quality=95)
+    return path
+
+
 def media_probe_duration(path: Path) -> float:
     data = subprocess.check_output(
         [
@@ -407,17 +442,7 @@ def make_demo_video() -> tuple[Path, Path]:
         ],
         real_frame,
     )
-    card_outro = make_card(
-        PROMO_DIR / "r1-locaterv2-card-outro.png",
-        "开源定位调试工具链",
-        "R1_LocaterV2 / STM32G4 / PySide6",
-        [
-            "仓库提供固件、上位机、地图模型、回放与数据分析工具。",
-            "适合机器人定位调试、传感器融合验证和赛场 real2sim 复盘。",
-            "感谢李彦彦、王晨宇、李岳林、马克提供技术支持。",
-        ],
-        ASSETS_DIR / "r1_chassis_830mm_texture_1024.png",
-    )
+    card_outro = make_ack_card(PROMO_DIR / "r1-locaterv2-card-outro.png")
 
     segments: list[Path] = []
     for idx, (image, duration) in enumerate([(poster, 5), (card_pipeline, 8), (card_real, 6)]):
