@@ -105,6 +105,14 @@
       padding: 12px;
       box-shadow: 0 34px 110px rgba(0,0,0,0.5);
     }
+    .player-head {
+      padding: 8px 8px 14px;
+    }
+    .player-head p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 1.02rem;
+    }
     video {
       display: block;
       width: 100%;
@@ -148,12 +156,37 @@
     .video-title { display: flex; align-items: baseline; gap: 10px; margin: 0 0 10px; }
     .video-title .zh { font-size: 34px; font-weight: 900; }
     .video-title .en { color: var(--muted); font-size: 15px; font-weight: 800; text-transform: uppercase; }
+    .player-head .video-title .zh { font-size: 40px; }
+    .player-head .video-title .en { font-size: 15px; }
     .video-card p { color: var(--muted); margin: 0 0 14px; }
     .video-card video { aspect-ratio: 16 / 9; min-height: 360px; }
+    .stage-links {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 14px;
+    }
+    .stage-link {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-height: 50px;
+      justify-content: center;
+      border: 1px solid rgba(39,220,255,0.28);
+      border-radius: 10px;
+      padding: 8px 10px;
+      background: rgba(39,220,255,0.08);
+      color: var(--text);
+      text-decoration: none;
+    }
+    .stage-link .zh { font-size: 15px; font-weight: 900; }
+    .stage-link .en { color: var(--muted); font-size: 11px; font-weight: 800; text-transform: uppercase; }
+    .stage-link:hover { border-color: rgba(39,220,255,0.72); background: rgba(39,220,255,0.16); }
 
     @media (max-width: 920px) {
       .hero, .grid { grid-template-columns: 1fr; }
       .primary-video, .video-card video { min-height: auto; }
+      .stage-links { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -184,6 +217,13 @@
     </section>
 
     <section class="player" aria-label="完整演示视频">
+      <div class="player-head">
+        <h2 class="video-title">
+          <span class="zh">完整演示视频</span>
+          <span class="en">Full Walkthrough Video</span>
+        </h2>
+        <p>从系统结构、实车链路到上位机闭环的完整展示；中文标题为主，英文小字用于双语识别。</p>
+      </div>
       <video class="primary-video" controls muted playsinline poster="promotion/r1-locaterv2-poster.png">
         <source src="https://cdn.jsdelivr.net/gh/lwbscu/R1_LocaterV2@main/docs/promotion/r1-locaterv2-demo.mp4" type="video/mp4">
       </video>
@@ -216,6 +256,24 @@
         <video controls muted playsinline poster="promotion/r1-locaterv2-field-model-overview.png">
           <source src="https://cdn.jsdelivr.net/gh/lwbscu/R1_LocaterV2@main/docs/promotion/r1-locaterv2-sim-preview.mp4" type="video/mp4">
         </video>
+        <div class="stage-links" aria-label="四阶段仿真 eval 视频">
+          <a class="stage-link" href="https://cdn.jsdelivr.net/gh/lwbscu/R1_LocaterV2@main/docs/promotion/r1-locaterv2-sim-stage-ideal.mp4">
+            <span class="zh">阶段一：理想基准</span>
+            <span class="en">Ideal Baseline</span>
+          </a>
+          <a class="stage-link" href="https://cdn.jsdelivr.net/gh/lwbscu/R1_LocaterV2@main/docs/promotion/r1-locaterv2-sim-stage-pid.mp4">
+            <span class="zh">阶段二：控制偏差</span>
+            <span class="en">Control Error</span>
+          </a>
+          <a class="stage-link" href="https://cdn.jsdelivr.net/gh/lwbscu/R1_LocaterV2@main/docs/promotion/r1-locaterv2-sim-stage-async-occlusion.mp4">
+            <span class="zh">阶段三：遮挡异步</span>
+            <span class="en">Async Occlusion</span>
+          </a>
+          <a class="stage-link" href="https://cdn.jsdelivr.net/gh/lwbscu/R1_LocaterV2@main/docs/promotion/r1-locaterv2-sim-stage-lidar-noise.mp4">
+            <span class="zh">阶段四：雷达噪声</span>
+            <span class="en">Lidar Noise</span>
+          </a>
+        </div>
       </article>
     </section>
   </main>

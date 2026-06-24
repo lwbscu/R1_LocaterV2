@@ -16,7 +16,14 @@ ASSETS_DIR = ROOT / "locater_map" / "assets"
 DOCS_DIR = ROOT / "docs"
 PANGOLIN_LOGO = DOCS_DIR / "Pangolin.png"
 R1_IP_IMAGE = DOCS_DIR / "R1.png"
-SIM_LOG_DIR = ROOT / "locater_map" / "logs" / "RL_data" / "20260623_coord_fixed_four_stages" / "ideal_log" / "png"
+SIM_STAGE_ROOT = ROOT / "locater_map" / "logs" / "RL_data" / "20260623_coord_fixed_four_stages"
+SIM_LOG_DIR = SIM_STAGE_ROOT / "ideal_log" / "png"
+SIM_STAGE_CLIPS = [
+    ("ideal_log", "r1-locaterv2-sim-stage-ideal.mp4"),
+    ("pid_log", "r1-locaterv2-sim-stage-pid.mp4"),
+    ("async_occlusion_log", "r1-locaterv2-sim-stage-async-occlusion.mp4"),
+    ("lidar_noise_log", "r1-locaterv2-sim-stage-lidar-noise.mp4"),
+]
 
 W, H = 1920, 1080
 POSTER_W, POSTER_H = 2160, 1440
@@ -338,25 +345,54 @@ def encode_real_clip(src: Path, out: Path) -> None:
     )
 
 
-def encode_sim_clip(out: Path) -> Path | None:
-    if not SIM_LOG_DIR.exists():
+def encode_video_excerpt(src: Path, out: Path, start_s: float, duration_s: float) -> None:
+    run(
+        [
+            "ffmpeg",
+            "-y",
+            "-ss",
+            f"{start_s:.2f}",
+            "-i",
+            str(src),
+            "-t",
+            f"{duration_s:.2f}",
+            "-vf",
+            "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,format=yuv420p",
+            "-r",
+            "24",
+            "-an",
+            "-c:v",
+            "libx264",
+            "-preset",
+            "medium",
+            "-crf",
+            "29",
+            "-movflags",
+            "+faststart",
+            str(out),
+        ]
+    )
+
+
+def encode_sim_clip(out: Path, png_dir: Path | None = None) -> Path | None:
+    source_dir = png_dir or SIM_LOG_DIR
+    if not source_dir.exists():
         return None
-    frames = sorted(SIM_LOG_DIR.glob("t_*.png"))
+    frames = sorted(source_dir.glob("t_*.png"))
     if len(frames) < 8:
         return None
-    tmp_frames = TMP_DIR / "sim_frames"
+    tmp_frames = TMP_DIR / f"sim_frames_{out.stem}"
     if tmp_frames.exists():
         shutil.rmtree(tmp_frames)
     tmp_frames.mkdir(parents=True, exist_ok=True)
-    selected = frames[:: max(1, len(frames) // 80)]
-    for i, frame in enumerate(selected):
+    for i, frame in enumerate(frames):
         shutil.copy2(frame, tmp_frames / f"{i:04d}.png")
     run(
         [
             "ffmpeg",
             "-y",
             "-framerate",
-            "8",
+            "1",
             "-i",
             str(tmp_frames / "%04d.png"),
             "-vf",
@@ -369,13 +405,23 @@ def encode_sim_clip(out: Path) -> Path | None:
             "-preset",
             "medium",
             "-crf",
-            "27",
+            "28",
             "-movflags",
             "+faststart",
             str(out),
         ]
     )
     return out
+
+
+def encode_sim_stage_clips() -> list[Path]:
+    outputs: list[Path] = []
+    for log_name, filename in SIM_STAGE_CLIPS:
+        out = PROMO_DIR / filename
+        clip = encode_sim_clip(out, SIM_STAGE_ROOT / log_name / "png")
+        if clip is not None:
+            outputs.append(clip)
+    return outputs
 
 
 def convert_real_video() -> tuple[Path, Path]:
@@ -416,6 +462,7 @@ def make_demo_video() -> tuple[Path, Path]:
     TMP_DIR.mkdir(parents=True, exist_ok=True)
     h264, real_frame = convert_real_video()
     poster = make_poster()
+    encode_sim_stage_clips()
     field_model_overview = ROOT / "locater_map" / "logs" / "RL_data" / "20260623_coord_fixed_four_stages" / "ideal_log" / "png" / "overview.png"
     if field_model_overview.exists():
         shutil.copy2(field_model_overview, PROMO_DIR / "r1-locaterv2-field-model-overview.png")
@@ -454,7 +501,9 @@ def make_demo_video() -> tuple[Path, Path]:
     segments.append(real_seg)
     sim_seg = PROMO_DIR / "r1-locaterv2-sim-preview.mp4"
     if encode_sim_clip(sim_seg):
-        segments.append(sim_seg)
+        sim_demo_seg = TMP_DIR / "seg_sim_excerpt.mp4"
+        encode_video_excerpt(sim_seg, sim_demo_seg, start_s=22.0, duration_s=16.0)
+        segments.append(sim_demo_seg)
     outro_seg = TMP_DIR / "seg_outro.mp4"
     encode_still(card_outro, 7.0, outro_seg)
     segments.append(outro_seg)
