@@ -122,4 +122,4 @@ docs/promotion/          README poster, demo videos, GitHub Pages pages, and gen
 - Electrical control support: [@Thomaswang2005](https://github.com/Thomaswang2005), [@HIRAMHC111](https://github.com/HIRAMHC111)
 - Lidar support: [@Getting05](https://github.com/Getting05), [@qyw23AI](https://github.com/qyw23AI)
 - Hardware chip design: [@twenty-fourabc](https://github.com/twenty-fourabc), [@2718487561-a11y](https://github.com/2718487561-a11y), [@wancyu](https://github.com/wancyu)
-- Mechanical structure design: Mark (GitHub username pending)
+- Mechanical structure design: [@mmkk-cn](https://github.com/mmkk-cn)

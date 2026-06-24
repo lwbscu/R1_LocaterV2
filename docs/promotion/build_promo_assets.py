@@ -237,7 +237,7 @@ def make_ack_card(path: Path) -> Path:
         "电控技术支持：@Thomaswang2005 / @HIRAMHC111",
         "lidar 技术支持：@Getting05 / @qyw23AI",
         "硬件芯片设计：@twenty-fourabc / @2718487561-a11y / @wancyu",
-        "机械结构设计：马克（GitHub 用户名待定）",
+        "机械结构设计：@mmkk-cn",
     ]
     y = 215
     for item in body:
