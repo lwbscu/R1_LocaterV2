@@ -1,5 +1,9 @@
 # R1_LocaterV2
 
+<p align="center">
+  <b>中文</b> / <a href="README.en.md">English</a>
+</p>
+
 R1_LocaterV2 是基于 STM32G4 的 R1 机器人定位板工程。它把 H30 MINI 惯导、双正交编码轮、Lidar 位姿、双 DT35 测距和 Windows 上位机调试工具统一到一套定位闭环中，用于比赛场地中的实时定位、传感器排障、数据采集和 real2sim 算法迭代。
 
 <p align="center">
@@ -13,7 +17,6 @@ R1_LocaterV2 是基于 STM32G4 的 R1 机器人定位板工程。它把 H30 MINI
   <a href="https://lwbscu.github.io/R1_LocaterV2/"><img alt="Live Page" src="https://img.shields.io/badge/Live-Page-00a6d6?style=flat"></a>
   <a href="https://juejin.cn/spost/7654479136493420554"><img alt="Juejin Article" src="https://img.shields.io/badge/Juejin-Article-1e80ff?style=flat"></a>
   <a href="https://lwbscu.github.io/R1_LocaterV2/promo-video.html"><img alt="Demo Video" src="https://img.shields.io/badge/Demo-Video-ff4d4f?style=flat"></a>
-  <a href="docs/promotion/r1-locaterv2-demo.mp4"><img alt="MP4" src="https://img.shields.io/badge/MP4-H.264-38bdf8?style=flat"></a>
   <img alt="STM32G4" src="https://img.shields.io/badge/MCU-STM32G4-2ea44f?style=flat">
   <img alt="Fusion" src="https://img.shields.io/badge/%E5%A4%9A%E4%BC%A0%E6%84%9F%E5%99%A8-%E8%9E%8D%E5%90%88-ffc240?style=flat">
 </p>
@@ -23,13 +26,6 @@ R1_LocaterV2 是基于 STM32G4 的 R1 机器人定位板工程。它把 H30 MINI
 - [2026/06] 🔥 完成 R1_LocaterV2 定位板重构：STM32G4 固件、PySide6 上位机、日志采集和回放闭环统一到同一套工程。
 - [2026/06] 🔥 打通 H30 yaw、双正交编码轮、Lidar 位姿、双 DT35 测距与场地墙体模型，用启动局部零点对齐底盘主控输出。
 - [2026/06] 🔥 初步实车全程 yaw 累计误差约 `0.04 deg`，并建立 real2sim / RLHF 数据采集与离线评估链路。
-
-## 当前状态
-
-- 码盘定位板已迭代到 V2，主控芯片为 STM32G4。
-- 初步实车跑全程 yaw 累计误差约 `0.04 deg`。
-- 已集成 H30 yaw、双正交编码轮、Lidar 数据、双 DT35 测距和 PySide6 实时地图上位机。
-- 当前调试重点是：以 Lidar 启动坐标为局部零点，用 H30 yaw 和编码轮做高频插值，用 DT35 与场地墙体模型做位置约束和异常筛选。
 
 ## 坐标约定
 
@@ -51,39 +47,6 @@ R1_LocaterV2 是基于 STM32G4 的 R1 机器人定位板工程。它把 H30 MINI
 | H30 MINI | UART4 `460800` | 接收 yaw / 姿态数据 |
 | DT35-1 / DT35-2 | UART5 `115200` | 轮询两个 DT35 距离，ID1 左发左射，ID2 右发右射 |
 | 正交编码轮 1/2 | TIM2 / TIM3 Encoder | 获取本地位移增量 |
-
-## 通信协议
-
-### USART1: `r1_csv_v3`
-
-默认输出 12 列纯数字 CSV，供上位机、日志采集和回放工具解析：
-
-```text
-pos_x,pos_y,pos_yaw,lidar_x,lidar_y,lidar_yaw,encoder_x,encoder_y,h30_yaw,dt35_1_mm,dt35_2_mm,status_mask
-```
-
-字段单位：
-
-- `x/y`: cm
-- `yaw`: deg
-- `dt35`: mm
-- `status_mask`: bit mask，包含编码轮、H30、Lidar、DT35、错误状态等。
-
-### USART2: 底盘主控帧
-
-当前底盘主控接收 11 个 float：
-
-```text
-'P','G',
-x,y,yaw,
-lidar_x,lidar_y,lidar_yaw,
-encoder_x,encoder_y,
-h30_yaw,
-dt35_1,dt35_2,
-checksum
-```
-
-`checksum` 为前面所有字节的 uint8 累加和。
 
 ## 上位机
 
