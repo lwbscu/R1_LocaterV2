@@ -3,16 +3,16 @@
 R1_LocaterV2 是基于 STM32G4 的 R1 机器人定位板工程。它把 H30 MINI 惯导、双正交编码轮、Lidar 位姿、双 DT35 测距和 Windows 上位机调试工具统一到一套定位闭环中，用于比赛场地中的实时定位、传感器排障、数据采集和 real2sim 算法迭代。
 
 <p align="center">
-  <a href="https://raw.githack.com/lwbscu/R1_LocaterV2/main/docs/index.html">
+  <a href="https://lwbscu.github.io/R1_LocaterV2/">
     <img src="docs/promotion/r1-locaterv2-poster.png" alt="R1_LocaterV2 demo poster" width="1100">
   </a>
 </p>
 
 <p align="center">
   <a href="https://github.com/lwbscu/R1_LocaterV2"><img alt="GitHub Repo" src="https://img.shields.io/badge/GitHub-Repo-181717?style=flat&logo=github&logoColor=white"></a>
-  <a href="https://raw.githack.com/lwbscu/R1_LocaterV2/main/docs/index.html"><img alt="Live Page" src="https://img.shields.io/badge/Live-Page-00a6d6?style=flat"></a>
+  <a href="https://lwbscu.github.io/R1_LocaterV2/"><img alt="Live Page" src="https://img.shields.io/badge/Live-Page-00a6d6?style=flat"></a>
   <a href="https://juejin.cn/spost/7654479136493420554"><img alt="Juejin Article" src="https://img.shields.io/badge/Juejin-Article-1e80ff?style=flat"></a>
-  <a href="https://raw.githack.com/lwbscu/R1_LocaterV2/main/docs/promo-video.html"><img alt="Demo Video" src="https://img.shields.io/badge/Demo-Video-ff4d4f?style=flat"></a>
+  <a href="https://lwbscu.github.io/R1_LocaterV2/promo-video.html"><img alt="Demo Video" src="https://img.shields.io/badge/Demo-Video-ff4d4f?style=flat"></a>
   <a href="docs/promotion/r1-locaterv2-demo.mp4"><img alt="MP4" src="https://img.shields.io/badge/MP4-H.264-38bdf8?style=flat"></a>
   <img alt="STM32G4" src="https://img.shields.io/badge/MCU-STM32G4-2ea44f?style=flat">
   <img alt="Fusion" src="https://img.shields.io/badge/%E5%A4%9A%E4%BC%A0%E6%84%9F%E5%99%A8-%E8%9E%8D%E5%90%88-ffc240?style=flat">
