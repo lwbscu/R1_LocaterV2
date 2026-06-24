@@ -19,7 +19,7 @@ R1_IP_IMAGE = DOCS_DIR / "R1.png"
 SIM_LOG_DIR = ROOT / "locater_map" / "logs" / "RL_data" / "20260623_coord_fixed_four_stages" / "ideal_log" / "png"
 
 W, H = 1920, 1080
-POSTER_W, POSTER_H = 1920, 1440
+POSTER_W, POSTER_H = 2160, 1440
 BG = (9, 14, 22)
 PANEL = (16, 24, 36)
 PANEL_2 = (22, 35, 51)
@@ -164,21 +164,21 @@ def make_poster() -> Path:
         canvas.paste(fitted, (px, py))
 
     canvas, draw = base_canvas(POSTER_W, POSTER_H)
-    round_rect(draw, (70, 70, 1850, 1370), 32, PANEL_2, outline=(45, 66, 91), width=2)
-    draw.text((130, 135), "R1_LocaterV2", font=F_TITLE, fill=TEXT)
-    draw.text((135, 220), "STM32G4 多传感器定位板", font=F_SUBTITLE, fill=CYAN)
+    round_rect(draw, (70, 70, 2090, 1370), 32, PANEL_2, outline=(45, 66, 91), width=2)
+    draw.text((130, 125), "R1_LocaterV2", font=F_TITLE, fill=TEXT)
+    draw.text((135, 235), "STM32G4 多传感器定位板", font=F_SUBTITLE, fill=CYAN)
     draw_wrapped(
         draw,
         "H30 yaw、双正交编码轮、Lidar 启动局部位姿、双 DT35 测距与 PySide6 实时地图上位机对齐到同一套定位调试闭环。",
-        (135, 300),
-        650,
+        (135, 335),
+        760,
         fnt=F_BODY,
         fill=TEXT,
     )
-    draw_badge(draw, (135, 435), "里程计", GREEN)
-    draw_badge(draw, (270, 435), "多传感器融合", CYAN)
-    draw_badge(draw, (520, 435), "RLHF 数据闭环", YELLOW)
-    y = 540
+    draw_badge(draw, (135, 495), "里程计", GREEN)
+    draw_badge(draw, (270, 495), "多传感器融合", CYAN)
+    draw_badge(draw, (520, 495), "RLHF 数据闭环", YELLOW)
+    y = 600
     bullets = [
         "双正交编码轮里程计与 H30 yaw 提供高频局部位姿约束",
         "Lidar、DT35、里程计多源观测在同一地图坐标系下融合校验",
@@ -186,13 +186,11 @@ def make_poster() -> Path:
     ]
     for item in bullets:
         draw.ellipse((145, y + 8, 157, y + 20), fill=GREEN)
-        y = draw_wrapped(draw, item, (177, y), 660, fnt=F_BODY, fill=TEXT) + 8
+        y = draw_wrapped(draw, item, (177, y), 760, fnt=F_BODY, fill=TEXT) + 8
 
-    draw.text((135, 855), "品牌识别", font=F_BODY_BOLD, fill=TEXT)
-    draw.text((265, 861), "Brand Identity", font=F_SMALL, fill=MUTED)
     brand_cards = [
-        ((135, 915, 382, 1210), PANGOLIN_LOGO, "Pangolin 团队标志"),
-        ((430, 915, 677, 1210), R1_IP_IMAGE, "R1 IP 形象"),
+        ((135, 960, 382, 1255), PANGOLIN_LOGO, "Pangolin 团队标志"),
+        ((430, 960, 677, 1255), R1_IP_IMAGE, "R1 IP 形象"),
     ]
     for box, img_path, label in brand_cards:
         x1, y1, x2, y2 = box
@@ -202,13 +200,13 @@ def make_poster() -> Path:
             paste_fit(canvas, img_path, image_box, cover=False)
         draw.text((x1 + 24, y2 - 48), label, font=F_SMALL, fill=TEXT)
 
-    media_frame = (880, 145, 1788, 1295)
+    media_frame = (1010, 145, 2030, 1295)
     round_rect(draw, media_frame, 22, (8, 13, 20), outline=(55, 80, 110), width=1)
     if start_map and start_map.exists():
-        paste_media(start_map, (915, 180, 1753, 1235), cover=False)
+        paste_media(start_map, (1045, 180, 1995, 1235), cover=False)
     elif field.exists():
-        paste_media(field, (915, 180, 1753, 1235), cover=False)
-    draw.text((915, 1245), "起点 x=0, y=0, yaw=0 / +X 正东 / +Y 正北", font=F_SMALL, fill=YELLOW)
+        paste_media(field, (1045, 180, 1995, 1235), cover=False)
+    draw.text((1045, 1245), "起点 x=0, y=0, yaw=0 / +X 正东 / +Y 正北", font=F_SMALL, fill=YELLOW)
     out.parent.mkdir(parents=True, exist_ok=True)
     canvas.save(out, quality=95)
     return out
