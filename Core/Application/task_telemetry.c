@@ -256,6 +256,10 @@ static void get_host_pose_values(const Locater_State_t *state, float values[LOCA
     values[0] = x_cm;
     values[1] = y_cm;
     values[2] = host_wrap_yaw_deg(yaw_deg);
+    /*
+     * Lidar fields are the chassis-center pose converted in task_locater.c.
+     * They are not the raw lidar-module pose.
+     */
     values[3] = state->lidar_x_cm;
     values[4] = state->lidar_y_cm;
     values[5] = state->lidar_yaw_deg;
