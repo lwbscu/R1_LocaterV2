@@ -137,7 +137,7 @@ def main() -> int:
     parser.add_argument("--fusion-output", default=None, help="Output CSV path for --simulate-fusion")
     parser.add_argument("--replay", default=None, help="Replay parsed_frames.csv")
     parser.add_argument("--replay-speed", type=float, default=None, help="Replay speed multiplier, e.g. 0.5 for 10Hz CSV at real time")
-    parser.add_argument("--serial-port", default=None, help="Open this COM port on startup")
+    parser.add_argument("--serial-port", default=None, help="Open this serial port on startup, e.g. a Windows serial device or Linux /dev/ttyACM*")
     parser.add_argument("--baudrate", type=int, default=None, help="Override serial baudrate")
     parser.add_argument("--duration-s", type=float, default=None, help="Auto-close after N seconds")
     parser.add_argument("--screenshot", default=None, help="Save a screenshot before auto-close")
@@ -256,13 +256,24 @@ def main() -> int:
     if args.record:
         from locater_map.calibration_recorder import record_to_session
         from locater_map.config_loader import load_config
+        from locater_map.serial_worker import available_ports, preferred_serial_port
 
         config = load_config(args.config)
-        port = args.serial_port or str(config.get("serial", {}).get("default_port") or "")
+        configured_port = str(config.get("serial", {}).get("default_port") or "")
+        port = str(args.serial_port or "").strip()
+        if not port:
+            port = preferred_serial_port(default=configured_port) or configured_port
         baudrate = int(args.baudrate or config.get("serial", {}).get("baudrate", 115200))
         duration_s = float(args.duration_s or 10.0)
         if not port:
-            parser.error("--record requires --serial-port or serial.default_port in config")
+            ports_text = ", ".join(available_ports()) or "none"
+            parser.error(
+                "--record could not find a serial port. "
+                "Run `python -m serial.tools.list_ports -v`, then pass --serial-port. "
+                f"available_ports={ports_text}"
+            )
+        if not args.serial_port:
+            print(f"serial_port={port}")
         session_dir, summary = record_to_session(
             port=port,
             baudrate=baudrate,

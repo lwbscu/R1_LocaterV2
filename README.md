@@ -1,6 +1,6 @@
 # R1_LocaterV2
 
-R1_LocaterV2 是基于 STM32G4 的 R1 机器人定位板工程。它把 H30 MINI 惯导、双正交编码轮、Lidar 位姿、双 DT35 测距和 Windows 上位机调试工具统一到一套定位闭环中，用于比赛场地中的实时定位、传感器排障、数据采集和 real2sim 算法迭代。
+R1_LocaterV2 是基于 STM32G4 的 R1 机器人定位板工程。它把 H30 MINI 惯导、双正交编码轮、Lidar 位姿、双 DT35 测距和跨平台上位机调试工具统一到一套定位闭环中，用于比赛场地中的实时定位、传感器排障、数据采集和 real2sim 算法迭代。
 
 <p align="center">
   <a href="https://lwbscu.github.io/R1_LocaterV2/">
@@ -71,13 +71,32 @@ python -m venv .venv
 pip install -r requirements.txt
 
 python main.py --demo
-python main.py --serial-port COM9 --baudrate 115200
+python main.py
+```
+
+Ubuntu 22.04 / Linux 本地电脑使用：
+
+```bash
+cd R1_LocaterV2/locater_map
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+
+python main.py --demo
+python main.py
+```
+
+Linux 插拔无线串口后端口号可能变化，先用下面命令查看当前端口，再在 GUI 中选择，或把实际端口传给 `--serial-port`：
+
+```bash
+python -m serial.tools.list_ports -v
+python main.py --serial-port <current-port> --baudrate 115200
 ```
 
 采集数据：
 
 ```powershell
-python main.py --serial-port COM9 --baudrate 115200
+python main.py
 ```
 
 在 GUI 中点击“开始采集数据”，移动机器人，再次点击保存。采集结果默认进入：
@@ -111,7 +130,7 @@ DT35 的核心问题不是单次距离读数，而是“这束光到底打到了
 ```text
 Core/Application/        STM32 应用层：定位、遥测、DT35/H30/Lidar/编码轮调度
 Core/Src/                STM32Cube 生成与外设初始化代码
-locater_map/             Windows 上位机、地图模型、日志采集与回放工具
+locater_map/             跨平台上位机、地图模型、日志采集与回放工具
 locater_map/assets/      场地图、底盘贴图、实车视频等资源
 docs/promotion/          README 封面、演示视频、GitHub Pages 展示页和生成脚本
 ```

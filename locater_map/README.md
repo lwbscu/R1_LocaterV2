@@ -2,7 +2,7 @@
 
 Repository: https://github.com/lwbscu/R1_LocaterV2.git
 
-Windows 2D realtime map and serial assistant for the R1 STM32G4 locater board. It receives STM32 USART1 data through the wireless serial link. It does not use ROS, network transport, Foxglove, RViz, Web, or Electron.
+Cross-platform 2D realtime map and serial assistant for the R1 STM32G4 locater board. It receives STM32 USART1 data through the wireless serial link. It does not use ROS, network transport, Foxglove, RViz, Web, or Electron.
 
 ## Update Notes
 
@@ -18,7 +18,16 @@ Windows 2D realtime map and serial assistant for the R1 STM32G4 locater board. I
 cd D:\STM32CubeMx\Project_File\STM32_Project\locater_lwb\R1_LocaterV2\locater_map
 python -m venv .venv
 .venv\Scripts\activate
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
+```
+
+Ubuntu 22.04 / Linux local desktop:
+
+```bash
+cd R1_LocaterV2/locater_map
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
 ```
 
 ## Run
@@ -26,37 +35,62 @@ pip install -r requirements.txt
 ```powershell
 python main.py
 python main.py --demo
-python main.py --serial-port COM9 --baudrate 115200
-python main.py --record --serial-port COM9 --baudrate 115200 --duration-s 20
-python main.py --analyze-csv logs\YYYYMMDD_HHMMSS_calib\parsed_frames.csv
-python main.py --simulate-fusion logs\YYYYMMDD_HHMMSS_calib\parsed_frames.csv --lidar-stride 5
-python main.py --simulate-fusion logs\YYYYMMDD_HHMMSS_calib\parsed_frames.csv --fusion-strides 1,2,5,10,25,50
-python main.py --validate-model-csv logs\YYYYMMDD_HHMMSS_calib\parsed_frames.csv --lidar-stride 25 --validate-model-output logs\model_validation.json --validate-model-fused-output logs\model_validation_fused.csv
-python main.py --real-validation-csv logs\YYYYMMDD_HHMMSS_calib\parsed_frames.csv --lidar-stride 25 --real-validation-output-dir logs\real_validation_latest
-python main.py --readiness-report --readiness-output-dir logs\readiness_latest
-python main.py --readiness-report --readiness-real-csv logs\YYYYMMDD_HHMMSS_calib\parsed_frames.csv --readiness-output-dir logs\readiness_real_latest
-python main.py --path-report-csv logs\YYYYMMDD_HHMMSS_calib\parsed_frames.csv --lidar-stride 25 --path-report-output logs\real_path_report.csv --path-report-summary logs\real_path_report.json
+python main.py --record --baudrate 115200 --duration-s 20
+python main.py --analyze-csv logs/YYYYMMDD_HHMMSS_calib/parsed_frames.csv
+python main.py --simulate-fusion logs/YYYYMMDD_HHMMSS_calib/parsed_frames.csv --lidar-stride 5
+python main.py --simulate-fusion logs/YYYYMMDD_HHMMSS_calib/parsed_frames.csv --fusion-strides 1,2,5,10,25,50
+python main.py --validate-model-csv logs/YYYYMMDD_HHMMSS_calib/parsed_frames.csv --lidar-stride 25 --validate-model-output logs/model_validation.json --validate-model-fused-output logs/model_validation_fused.csv
+python main.py --real-validation-csv logs/YYYYMMDD_HHMMSS_calib/parsed_frames.csv --lidar-stride 25 --real-validation-output-dir logs/real_validation_latest
+python main.py --readiness-report --readiness-output-dir logs/readiness_latest
+python main.py --readiness-report --readiness-real-csv logs/YYYYMMDD_HHMMSS_calib/parsed_frames.csv --readiness-output-dir logs/readiness_real_latest
+python main.py --path-report-csv logs/YYYYMMDD_HHMMSS_calib/parsed_frames.csv --lidar-stride 25 --path-report-output logs/real_path_report.csv --path-report-summary logs/real_path_report.json
 python main.py --dt35-hit-table
-python main.py --dt35-hit-table --dt35-hit-poses="-360,520,90,top_ignore;-550,50,0,forest" --dt35-hit-output logs\dt35_hits.csv
-python main.py --dt35-grid --dt35-grid-x=-580,580 --dt35-grid-y=-580,580 --dt35-grid-yaws=-180,-135,-90,-45,0,45,90,135 --dt35-grid-output logs\dt35_grid.csv --dt35-grid-summary logs\dt35_grid_summary.json
-python main.py --dt35-role-map --dt35-grid-x=-580,580 --dt35-grid-y=-580,580 --dt35-grid-step 100 --dt35-grid-yaws=-180,-135,-90,-45,0,45,90,135 --dt35-role-output logs\dt35_roles.csv --dt35-role-summary logs\dt35_roles.json --dt35-role-svg logs\dt35_roles.svg
+python main.py --dt35-hit-table --dt35-hit-poses="-360,520,90,top_ignore;-550,50,0,forest" --dt35-hit-output logs/dt35_hits.csv
+python main.py --dt35-grid --dt35-grid-x=-580,580 --dt35-grid-y=-580,580 --dt35-grid-yaws=-180,-135,-90,-45,0,45,90,135 --dt35-grid-output logs/dt35_grid.csv --dt35-grid-summary logs/dt35_grid_summary.json
+python main.py --dt35-role-map --dt35-grid-x=-580,580 --dt35-grid-y=-580,580 --dt35-grid-step 100 --dt35-grid-yaws=-180,-135,-90,-45,0,45,90,135 --dt35-role-output logs/dt35_roles.csv --dt35-role-summary logs/dt35_roles.json --dt35-role-svg logs/dt35_roles.svg
 python main.py --dt35-role-map --dt35-role-poses="-360,520,90,top_ignore;-550,50,0,forest;-400,-420,0,ramp"
-python main.py --dt35-validation-plan --dt35-grid-step 100 --dt35-validation-plan-output logs\dt35_validation_plan_latest.csv --dt35-validation-plan-summary logs\dt35_validation_plan_latest.json --dt35-validation-plan-md logs\dt35_validation_plan_latest.md
-python main.py --dt35-field-sweep --dt35-grid-step 100 --dt35-field-sweep-output logs\dt35_field_sweep_latest.csv --dt35-field-sweep-summary logs\dt35_field_sweep_latest.json
-python main.py --dt35-analyze-csv logs\YYYYMMDD_HHMMSS_calib\parsed_frames.csv --dt35-analyze-output logs\dt35_residuals.csv --dt35-analyze-summary logs\dt35_residuals.json --dt35-advice-output logs\dt35_advice.csv --dt35-advice-summary logs\dt35_advice.json --dt35-advice-md logs\dt35_advice.md
-python main.py --field-model-svg logs\field_model_overlay_latest.svg
-python main.py --field-model-audit logs\field_model_audit_latest.json
+python main.py --dt35-validation-plan --dt35-grid-step 100 --dt35-validation-plan-output logs/dt35_validation_plan_latest.csv --dt35-validation-plan-summary logs/dt35_validation_plan_latest.json --dt35-validation-plan-md logs/dt35_validation_plan_latest.md
+python main.py --dt35-field-sweep --dt35-grid-step 100 --dt35-field-sweep-output logs/dt35_field_sweep_latest.csv --dt35-field-sweep-summary logs/dt35_field_sweep_latest.json
+python main.py --dt35-analyze-csv logs/YYYYMMDD_HHMMSS_calib/parsed_frames.csv --dt35-analyze-output logs/dt35_residuals.csv --dt35-analyze-summary logs/dt35_residuals.json --dt35-advice-output logs/dt35_advice.csv --dt35-advice-summary logs/dt35_advice.json --dt35-advice-md logs/dt35_advice.md
+python main.py --field-model-svg logs/field_model_overlay_latest.svg
+python main.py --field-model-audit logs/field_model_audit_latest.json
 python main.py --synthetic-fusion --synthetic-path top_corridor --lidar-stride 10 --fusion-dt35-gain 1.0
 python main.py --synthetic-suite --lidar-stride 25 --synthetic-encoder-x-scale 0.97 --synthetic-encoder-y-scale 1.02 --fusion-dt35-yaw-gain 0.0
 python main.py --synthetic-suite --synthetic-suite-paths field_patrol --lidar-stride 25 --synthetic-encoder-x-scale 0.97 --synthetic-encoder-y-scale 1.02 --fusion-dt35-yaw-gain 0.0
-python main.py --synthetic-benchmark --synthetic-samples 180 --synthetic-encoder-x-scale 0.97 --synthetic-encoder-y-scale 1.03 --synthetic-dt35-noise-mm 5 --lidar-stride 25 --fusion-dt35-gain 1.0 --synthetic-benchmark-output logs\synthetic_benchmark_latest.csv --synthetic-benchmark-summary logs\synthetic_benchmark_latest.json
-python main.py --synthetic-obstacle-ablation --synthetic-samples 180 --synthetic-encoder-x-scale 0.97 --synthetic-encoder-y-scale 1.03 --synthetic-dt35-noise-mm 5 --lidar-stride 25 --fusion-dt35-gain 1.0 --synthetic-obstacle-ablation-output logs\obstacle_ablation_latest.csv --synthetic-obstacle-ablation-summary logs\obstacle_ablation_latest.json
-python main.py --synthetic-path-report --synthetic-path field_patrol --synthetic-encoder-x-scale 0.97 --synthetic-encoder-y-scale 1.02 --lidar-stride 25 --synthetic-path-report-output logs\field_patrol_path_diag.csv --synthetic-path-report-summary logs\field_patrol_path_diag_summary.json
+python main.py --synthetic-benchmark --synthetic-samples 180 --synthetic-encoder-x-scale 0.97 --synthetic-encoder-y-scale 1.03 --synthetic-dt35-noise-mm 5 --lidar-stride 25 --fusion-dt35-gain 1.0 --synthetic-benchmark-output logs/synthetic_benchmark_latest.csv --synthetic-benchmark-summary logs/synthetic_benchmark_latest.json
+python main.py --synthetic-obstacle-ablation --synthetic-samples 180 --synthetic-encoder-x-scale 0.97 --synthetic-encoder-y-scale 1.03 --synthetic-dt35-noise-mm 5 --lidar-stride 25 --fusion-dt35-gain 1.0 --synthetic-obstacle-ablation-output logs/obstacle_ablation_latest.csv --synthetic-obstacle-ablation-summary logs/obstacle_ablation_latest.json
+python main.py --synthetic-path-report --synthetic-path field_patrol --synthetic-encoder-x-scale 0.97 --synthetic-encoder-y-scale 1.02 --lidar-stride 25 --synthetic-path-report-output logs/field_patrol_path_diag.csv --synthetic-path-report-summary logs/field_patrol_path_diag_summary.json
 python main.py --synthetic-monte-carlo --synthetic-monte-carlo-runs 20 --lidar-stride 25 --synthetic-encoder-x-scale 0.97 --synthetic-encoder-y-scale 1.02 --synthetic-dt35-gains 0,0.4,0.6,0.85,1.0 --fusion-dt35-yaw-gain 0.0
-python main.py --replay logs\YYYYMMDD_HHMMSS\parsed_frames.csv
+python main.py --replay logs/YYYYMMDD_HHMMSS/parsed_frames.csv
 ```
 
-`--record` is the headless real-car calibration capture mode. Move the car during capture; each run creates
+The GUI lists the current serial ports and can auto-select the first likely USB serial adapter. Do not rely on a fixed port name after unplugging the adapter. On Linux, find the current device with:
+
+```bash
+python -m serial.tools.list_ports -v
+ls -l /dev/ttyACM* /dev/ttyUSB*
+```
+
+Use the actual device path only when you need to force one adapter:
+
+```bash
+python main.py --serial-port <current-port> --baudrate 115200
+```
+
+If Linux reports permission denied, add the current user to the serial group and log in again:
+
+```bash
+sudo usermod -aG dialout $USER
+```
+
+If the PySide6 window fails to start on Ubuntu, install the common Qt platform dependencies:
+
+```bash
+sudo apt update
+sudo apt install -y libxcb-cursor0 libxcb-xinerama0 libgl1
+```
+
+`--record` is the headless real-car calibration capture mode. It auto-selects a likely serial port when `--serial-port` is omitted; pass an explicit port if multiple adapters are present. Move the car during capture; each run creates
 `logs/YYYYMMDD_HHMMSS_calib/` with `raw_serial.log`, `parsed_frames.csv`, `calibration_summary.json`, and
 `calibration_notes.md`. The summary compares lidar deltas against encoder deltas and H30 yaw deltas for later
 map/fusion tuning.
@@ -134,7 +168,7 @@ forest/ramp solid-obstacle correction contributes in an ablation comparison; and
 lidar/H30/encoder/DT35 fusion improves over raw encoder/H30 prediction under the default assumption that
 H30 yaw and DT35 distance are accurate. This is not
 final completion evidence because it has no real DT35 log. Add
-`--readiness-real-csv logs\...\parsed_frames.csv` after capturing the real robot; the same report then embeds
+`--readiness-real-csv logs/.../parsed_frames.csv` after capturing the real robot; the same report then embeds
 `real_validation/` and only sets `completion_verified=true` when the real log passes.
 `objective_coverage.md` maps the original modeling objective to evidence files and marks each item as
 `passed_offline`, `passed_offline_needs_real_log`, `failed_real_log`, or `passed_real`, so remaining work is
@@ -263,14 +297,14 @@ changing field geometry:
 ```powershell
 python main.py --dt35-hit-table
 python main.py --dt35-hit-table --dt35-hit-poses="-360,520,90,top_ignore;-550,50,0,forest;-400,-420,0,ramp"
-python main.py --dt35-grid --dt35-grid-x=-580,580 --dt35-grid-y=-580,580 --dt35-grid-yaws=-180,-135,-90,-45,0,45,90,135 --dt35-grid-output logs\dt35_grid.csv --dt35-grid-summary logs\dt35_grid_summary.json
-python main.py --dt35-role-map --dt35-grid-x=-580,580 --dt35-grid-y=-580,580 --dt35-grid-yaws=-180,-135,-90,-45,0,45,90,135 --dt35-role-output logs\dt35_roles.csv --dt35-role-summary logs\dt35_roles.json --dt35-role-svg logs\dt35_roles.svg
-python main.py --dt35-validation-plan --dt35-grid-step 100 --dt35-validation-plan-output logs\dt35_validation_plan_latest.csv --dt35-validation-plan-summary logs\dt35_validation_plan_latest.json --dt35-validation-plan-md logs\dt35_validation_plan_latest.md
-python main.py --dt35-field-sweep --dt35-grid-step 100 --dt35-field-sweep-output logs\dt35_field_sweep_latest.csv --dt35-field-sweep-summary logs\dt35_field_sweep_latest.json
-python main.py --dt35-observability --dt35-grid-x=-580,580 --dt35-grid-y=-580,580 --dt35-grid-yaws=-180,-135,-90,-45,0,45,90,135 --dt35-observability-output logs\dt35_observability.csv --dt35-observability-summary logs\dt35_observability_summary.json
-python main.py --dt35-yaw-matrix --dt35-yaw-matrix-output logs\dt35_yaw_matrix.csv --dt35-yaw-matrix-summary logs\dt35_yaw_matrix_summary.json
-python main.py --field-model-svg logs\field_model_overlay_latest.svg
-python main.py --field-model-audit logs\field_model_audit_latest.json
+python main.py --dt35-grid --dt35-grid-x=-580,580 --dt35-grid-y=-580,580 --dt35-grid-yaws=-180,-135,-90,-45,0,45,90,135 --dt35-grid-output logs/dt35_grid.csv --dt35-grid-summary logs/dt35_grid_summary.json
+python main.py --dt35-role-map --dt35-grid-x=-580,580 --dt35-grid-y=-580,580 --dt35-grid-yaws=-180,-135,-90,-45,0,45,90,135 --dt35-role-output logs/dt35_roles.csv --dt35-role-summary logs/dt35_roles.json --dt35-role-svg logs/dt35_roles.svg
+python main.py --dt35-validation-plan --dt35-grid-step 100 --dt35-validation-plan-output logs/dt35_validation_plan_latest.csv --dt35-validation-plan-summary logs/dt35_validation_plan_latest.json --dt35-validation-plan-md logs/dt35_validation_plan_latest.md
+python main.py --dt35-field-sweep --dt35-grid-step 100 --dt35-field-sweep-output logs/dt35_field_sweep_latest.csv --dt35-field-sweep-summary logs/dt35_field_sweep_latest.json
+python main.py --dt35-observability --dt35-grid-x=-580,580 --dt35-grid-y=-580,580 --dt35-grid-yaws=-180,-135,-90,-45,0,45,90,135 --dt35-observability-output logs/dt35_observability.csv --dt35-observability-summary logs/dt35_observability_summary.json
+python main.py --dt35-yaw-matrix --dt35-yaw-matrix-output logs/dt35_yaw_matrix.csv --dt35-yaw-matrix-summary logs/dt35_yaw_matrix_summary.json
+python main.py --field-model-svg logs/field_model_overlay_latest.svg
+python main.py --field-model-audit logs/field_model_audit_latest.json
 ```
 
 `--field-model-svg` exports the exact DT35 geometry used by the algorithm as an SVG overlay on top of
@@ -340,7 +374,7 @@ upper/lower walls and constrain world `y`, but those hits may be out of the 250 
 For real logs, analyze measured residuals with lidar position and H30 yaw:
 
 ```powershell
-python main.py --dt35-analyze-csv logs\YYYYMMDD_HHMMSS_calib\parsed_frames.csv --dt35-pose-source lidar --dt35-yaw-source h30 --dt35-analyze-output logs\dt35_residuals.csv --dt35-analyze-summary logs\dt35_residuals.json --dt35-advice-output logs\dt35_advice.csv --dt35-advice-summary logs\dt35_advice.json --dt35-advice-md logs\dt35_advice.md
+python main.py --dt35-analyze-csv logs/YYYYMMDD_HHMMSS_calib/parsed_frames.csv --dt35-pose-source lidar --dt35-yaw-source h30 --dt35-analyze-output logs/dt35_residuals.csv --dt35-analyze-summary logs/dt35_residuals.json --dt35-advice-output logs/dt35_advice.csv --dt35-advice-summary logs/dt35_advice.json --dt35-advice-md logs/dt35_advice.md
 ```
 
 This command applies the same red/blue start-pose display policy as the UI, then computes each DT35 ray
@@ -359,8 +393,8 @@ adjust a wall/forest/ramp edge in the field model; do not use it to tune DT35 sc
 Smoke-test commands:
 
 ```powershell
-python main.py --demo --duration-s 3 --screenshot logs\demo_final.png
-python main.py --serial-port COM9 --baudrate 115200 --duration-s 5 --screenshot logs\com9_after_flash.png
+python main.py --demo --duration-s 3 --screenshot logs/demo_final.png
+python main.py --serial-port <current-port> --baudrate 115200 --duration-s 5 --screenshot logs/serial_after_flash.png
 ```
 
 ## USART1 Protocol
@@ -388,7 +422,7 @@ The app also keeps compatibility with old `r1_csv_v2` 25/41-column logs, legacy 
 
 ## UI
 
-- Left panel: COM port, baudrate, protocol mode, reconnect, Chinese/English language toggle, red/blue start pose option, layer toggles, replay controls.
+- Left panel: serial port, baudrate, protocol mode, reconnect, Chinese/English language toggle, red/blue start pose option, layer toggles, replay controls.
 - Center: prior field map, fixed 83 cm x 83 cm robot texture, live-fused pos/calib/lidar trajectories, optional DT35 rays.
 - DT35 model overlay: red means usable wall/partition, blue means ignored noisy rack/gap area, green means solid obstacle such as forest and ramp that blocks the laser and can correct pose with lower weight.
 - DT35 ray colors: green means the measured ray is valid for correction; purple means it hit an ignored area;
@@ -424,14 +458,14 @@ logs/YYYYMMDD_HHMMSS/events.log
 ## Tests
 
 ```powershell
-python -m json.tool config\default_config.json
+python -m json.tool config/default_config.json
 python -m pytest -q
 python -m compileall -q .
 ```
 
 ## Common Issues
 
-- No COM port: check the wireless serial driver and click Refresh.
+- No serial port: check the wireless serial driver and click Refresh.
 - No data: check USART1 baudrate 115200, TX/RX crossing, and common GND.
 - VOFA works but map does not move: select `auto` or `r1_csv_v3`; current firmware outputs 12 numeric fields.
 - Robot direction is off by 90/180 deg: tune `robot.texture_front_dir_deg_in_image`, `robot.yaw_offset_deg`, or `transform.data_yaw_offset_deg`.

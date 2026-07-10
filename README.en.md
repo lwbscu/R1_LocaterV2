@@ -1,6 +1,6 @@
 # R1_LocaterV2
 
-R1_LocaterV2 is an STM32G4-based localization board project for the R1 robot. It integrates H30 MINI yaw, two orthogonal encoder wheels, Lidar pose, dual DT35 distance sensors, and a Windows debugging station into one localization loop for real-time field localization, sensor diagnosis, data collection, and real2sim iteration.
+R1_LocaterV2 is an STM32G4-based localization board project for the R1 robot. It integrates H30 MINI yaw, two orthogonal encoder wheels, Lidar pose, dual DT35 distance sensors, and a cross-platform debugging station into one localization loop for real-time field localization, sensor diagnosis, data collection, and real2sim iteration.
 
 <p align="center">
   <a href="https://lwbscu.github.io/R1_LocaterV2/">
@@ -71,13 +71,32 @@ python -m venv .venv
 pip install -r requirements.txt
 
 python main.py --demo
-python main.py --serial-port COM9 --baudrate 115200
+python main.py
+```
+
+Ubuntu 22.04 / Linux local desktop:
+
+```bash
+cd R1_LocaterV2/locater_map
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+
+python main.py --demo
+python main.py
+```
+
+Linux serial device names can change after unplugging and replugging the wireless adapter. List the current port first, then select it in the GUI or pass the observed device path:
+
+```bash
+python -m serial.tools.list_ports -v
+python main.py --serial-port <current-port> --baudrate 115200
 ```
 
 Data collection:
 
 ```powershell
-python main.py --serial-port COM9 --baudrate 115200
+python main.py
 ```
 
 Click "Start Data Collection" in the GUI, move the robot, then click again to save. Data is stored under:
@@ -111,7 +130,7 @@ In the current offline benchmark, the fusion model reduces representative-path a
 ```text
 Core/Application/        STM32 application layer: localization, telemetry, DT35/H30/Lidar/encoder scheduling
 Core/Src/                STM32Cube generated code and peripheral initialization
-locater_map/             Windows desktop tool, map model, log collection, and replay
+locater_map/             Cross-platform desktop tool, map model, log collection, and replay
 locater_map/assets/      Field map, chassis texture, real-car videos, and assets
 docs/promotion/          README poster, demo videos, GitHub Pages pages, and generation scripts
 ```

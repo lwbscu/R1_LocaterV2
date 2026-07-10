@@ -304,7 +304,7 @@ class CalibrationRecorder:
     ) -> list[str]:
         notes: list[str] = []
         if not self.frames:
-            return ["No parsed frames. Check COM port, baudrate, and USART1 telemetry output."]
+            return ["No parsed frames. Check serial port, baudrate, and USART1 telemetry output."]
         if len(lidar_frames) < max(10, int(self.stats.frames * 0.2)):
             notes.append("Too few valid lidar frames; this capture is weak for map/encoder alignment.")
         if self.stats.h30_valid_frames == 0:
